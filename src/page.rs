@@ -2,7 +2,10 @@ use std::{env, fmt::Debug, iter, sync::OnceLock};
 
 use axum::{
     body::Body,
-    http::{header, HeaderValue, StatusCode},
+    http::{
+        header::{self, CONTENT_TYPE},
+        HeaderValue, StatusCode,
+    },
     response::{IntoResponse, Response},
 };
 use maud::{html, Markup, Render};
@@ -95,5 +98,17 @@ pub trait AppError: Debug + std::error::Error {
     /// Whether or not details about the error should be displayed to regular users.
     fn user_visible(&self) -> bool {
         false
+    }
+}
+
+pub struct Page(pub Markup);
+
+impl IntoResponse for Page {
+    fn into_response(self) -> axum::response::Response {
+        Response::builder()
+            .status(200)
+            .header(CONTENT_TYPE, "text/html; charset=utf8")
+            .body(Body::new(self.0.into_string()))
+            .expect("should not fail to build response")
     }
 }
