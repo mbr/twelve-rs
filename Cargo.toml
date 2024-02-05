@@ -9,3 +9,4 @@ axum = "0.7.4"
 futures-lite = "2.2.0"
 maud = "0.26.0"
 tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = [ "env-filter" ] }
