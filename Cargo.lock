@@ -253,6 +253,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastrand"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -294,7 +300,10 @@ version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "445ba825b27408685aaecefd65178908c36c6e96aaf6d8599419d46e624192ba"
 dependencies = [
+ "fastrand",
  "futures-core",
+ "futures-io",
+ "parking",
  "pin-project-lite",
 ]
 
@@ -878,6 +887,7 @@ version = "0.1.0"
 dependencies = [
  "async-signal",
  "axum",
+ "futures-lite",
  "maud",
  "tracing",
 ]
