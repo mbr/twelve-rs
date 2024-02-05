@@ -219,6 +219,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "248e3bacc7dc6baa3b21e405ee045c3047101a49145e7e9eca583ab4c2ca5345"
 
 [[package]]
+name = "envy"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f47e0157f2cb54f5ae1bd371b30a2ae4311e1c028f575cd4e81de7353215965"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1026,8 +1035,12 @@ version = "0.1.0"
 dependencies = [
  "async-signal",
  "axum",
+ "envy",
  "futures-lite",
  "maud",
+ "serde",
+ "tokio",
+ "tower-service",
  "tracing",
  "tracing-subscriber",
 ]
