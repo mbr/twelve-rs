@@ -11,6 +11,7 @@ use tower_service::Service;
 use tracing::info;
 
 pub mod page;
+pub mod savable;
 pub mod util;
 
 /// Perform initial setup
