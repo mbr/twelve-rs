@@ -4,5 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-signal = "0.2.5"
 axum = "0.7.4"
 maud = "0.26.0"
+tracing = "0.1.40"
