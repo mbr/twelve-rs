@@ -101,7 +101,7 @@ pub trait AppError: Debug + std::error::Error {
     /// Whether or not details about the error should be displayed to regular users.
     #[inline(always)]
     fn user_visible(&self) -> bool {
-        false
+        self.status_code() != StatusCode::INTERNAL_SERVER_ERROR
     }
 }
 
@@ -125,11 +125,6 @@ impl AppError for NotFound {
     #[inline(always)]
     fn status_code(&self) -> StatusCode {
         StatusCode::NOT_FOUND
-    }
-
-    #[inline(always)]
-    fn user_visible(&self) -> bool {
-        true
     }
 }
 
@@ -160,11 +155,6 @@ impl AppError for MethodNotAllowed {
     #[inline(always)]
     fn status_code(&self) -> StatusCode {
         StatusCode::METHOD_NOT_ALLOWED
-    }
-
-    #[inline(always)]
-    fn user_visible(&self) -> bool {
-        true
     }
 }
 
