@@ -2,10 +2,12 @@ use std::{env, fmt::Debug, iter, sync::OnceLock};
 
 use axum::{
     body::Body,
+    extract::Request,
     http::{
         header::{self, CONTENT_TYPE},
-        HeaderValue, StatusCode, Uri,
+        HeaderValue, Method, StatusCode, Uri,
     },
+    middleware::Next,
     response::{IntoResponse, Response},
 };
 use maud::{html, Markup, Render};
@@ -77,7 +79,6 @@ impl<E> IntoResponse for ErrorPage<E>
 where
     E: AppError,
 {
-    #[inline(always)]
     fn into_response(self) -> Response {
         Response::builder()
             .status(self.0.status_code())
@@ -92,11 +93,13 @@ where
 
 pub trait AppError: Debug + std::error::Error {
     /// The error code associated with a given error.
+    #[inline(always)]
     fn status_code(&self) -> StatusCode {
         StatusCode::INTERNAL_SERVER_ERROR
     }
 
     /// Whether or not details about the error should be displayed to regular users.
+    #[inline(always)]
     fn user_visible(&self) -> bool {
         false
     }
@@ -119,10 +122,47 @@ impl NotFound {
 }
 
 impl AppError for NotFound {
+    #[inline(always)]
     fn status_code(&self) -> StatusCode {
         StatusCode::NOT_FOUND
     }
 
+    #[inline(always)]
+    fn user_visible(&self) -> bool {
+        true
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("method not allowed: {0}")]
+pub struct MethodNotAllowed(Method);
+
+impl MethodNotAllowed {
+    #[inline(always)]
+    pub fn new(method: Method) -> Self {
+        Self(method)
+    }
+
+    #[inline]
+    pub async fn middleware<B>(req: Request, next: Next) -> Response {
+        let method = req.method().clone();
+        let response = next.run(req).await;
+
+        if response.status() == StatusCode::METHOD_NOT_ALLOWED {
+            return ErrorPage(MethodNotAllowed::new(method)).into_response();
+        }
+
+        response
+    }
+}
+
+impl AppError for MethodNotAllowed {
+    #[inline(always)]
+    fn status_code(&self) -> StatusCode {
+        StatusCode::METHOD_NOT_ALLOWED
+    }
+
+    #[inline(always)]
     fn user_visible(&self) -> bool {
         true
     }
