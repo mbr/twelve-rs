@@ -4,11 +4,12 @@ use axum::{
     body::Body,
     http::{
         header::{self, CONTENT_TYPE},
-        HeaderValue, StatusCode,
+        HeaderValue, StatusCode, Uri,
     },
     response::{IntoResponse, Response},
 };
 use maud::{html, Markup, Render};
+use thiserror::Error;
 
 /// Whether or not to allow users that are being returned an error detailed insight.
 static DETAILED_ERRORS: OnceLock<bool> = OnceLock::new();
@@ -98,6 +99,32 @@ pub trait AppError: Debug + std::error::Error {
     /// Whether or not details about the error should be displayed to regular users.
     fn user_visible(&self) -> bool {
         false
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("uri not found: {0}")]
+pub struct NotFound(pub Uri);
+
+impl NotFound {
+    #[inline(always)]
+    pub fn new(uri: Uri) -> Self {
+        Self(uri)
+    }
+
+    #[inline(always)]
+    pub async fn handler(uri: Uri) -> ErrorPage<Self> {
+        ErrorPage(Self::new(uri))
+    }
+}
+
+impl AppError for NotFound {
+    fn status_code(&self) -> StatusCode {
+        StatusCode::NOT_FOUND
+    }
+
+    fn user_visible(&self) -> bool {
+        true
     }
 }
 
