@@ -130,6 +130,13 @@ impl AppError for NotFound {
 
 pub struct Page(pub Markup);
 
+impl Page {
+    #[inline(always)]
+    pub fn ok<R: Render, E>(content: R) -> Result<Self, E> {
+        Ok(Self(content.render()))
+    }
+}
+
 impl IntoResponse for Page {
     fn into_response(self) -> axum::response::Response {
         Response::builder()
