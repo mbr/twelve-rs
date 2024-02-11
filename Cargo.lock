@@ -1061,7 +1061,6 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio",
- "tower-service",
  "tracing",
  "tracing-subscriber",
 ]
