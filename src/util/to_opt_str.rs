@@ -6,9 +6,12 @@ pub trait ToOptStr {
     fn to_opt_str(&self) -> Option<&str>;
 }
 
-impl ToOptStr for Option<String> {
+impl<T> ToOptStr for Option<T>
+where
+    T: AsRef<str>,
+{
     #[inline(always)]
     fn to_opt_str(&self) -> Option<&str> {
-        Some(self.as_ref()?.as_str())
+        self.as_ref().map(AsRef::as_ref)
     }
 }
