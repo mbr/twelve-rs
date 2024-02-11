@@ -17,7 +17,8 @@
 //! the container runtime instead, which cannot be ignored. This causes both a delay in shutting
 //! down, as well as potentially unclean shutdowns.
 //!
-//! To fix this, a utility function is provided in [`setup_and_wait_for_shutdown`], which is meant to be registered using [`axum::serve::Serve::with_graceful_shutdown`].
+//! To fix this, a utility function is provided in [`setup_and_wait_for_shutdown`], which is meant
+//! to be registered using [`axum::serve::Serve::with_graceful_shutdown`].
 
 use std::future::Future;
 
