@@ -2,5 +2,5 @@
 //!
 //! Various smaller utility functions.
 
+pub mod as_opt_str;
 pub mod graceful_shutdown;
-pub mod to_opt_str;
