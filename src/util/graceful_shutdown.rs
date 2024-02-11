@@ -13,12 +13,14 @@
 //! `SIGTERM` sent to them will be ignored by default.
 //!
 //! As a result, containers running these applications will usually not respond to a `SIGTERM` and
-//! run into a timeout (which is usually defaulting to 10 seconds) before being sent a `SIGKILL` by
-//! the container runtime instead, which cannot be ignored. This causes both a delay in shutting
-//! down, as well as potentially unclean shutdowns.
+//! run into a timeout, which is usually defaults to 10 seconds, before being sent the unignorable
+//! `SIGKILL` by the container runtime. This causes both a delay in shutting down, as well as
+//! potentially unclean shutdowns.
 //!
 //! To fix this, a utility function is provided in [`setup_and_wait_for_shutdown`], which is meant
-//! to be registered using [`axum::serve::Serve::with_graceful_shutdown`].
+//! to be registered using [`axum::serve::Serve::with_graceful_shutdown`]. By explicitly registering
+//! a signal handler for `SIGTERM` and other shutdown signals, the application can shut down
+//! cleanly even when run as PID 0.
 
 use std::future::Future;
 
