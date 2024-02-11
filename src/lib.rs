@@ -1,16 +1,18 @@
 #![doc = include_str!("../README.md")]
 
+mod config;
+pub mod page;
+pub mod util;
+
 use std::net::{IpAddr, SocketAddr};
 
 use axum::{body::Body, middleware, Router};
 use serde::de::DeserializeOwned;
-use tower_http::trace::TraceLayer;
+use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing::info;
 
 use crate::page::{MethodNotAllowed, NotFound};
-
-pub mod page;
-pub mod util;
+pub use config::TwelveConfig;
 
 /// Perform initial setup
 ///
@@ -25,11 +27,16 @@ pub fn setup<T: DeserializeOwned>() -> T {
     envy::from_env().expect("failed to parse configuration from environment")
 }
 
-pub async fn serve(port: u16, router: Router) {
-    let listen_addr = SocketAddr::from((IpAddr::from([0, 0, 0, 0]), port));
+pub async fn serve(router: Router) {
+    with_cfg(TwelveConfig::from_env(), router).await
+}
+
+pub async fn with_cfg(cfg: TwelveConfig, router: Router) {
+    let listen_addr = SocketAddr::from((IpAddr::from([0, 0, 0, 0]), cfg.port));
     info!("listening on {}", listen_addr);
 
     let service = router
+        .nest_service("/_static", ServeDir::new(&cfg.static_dir))
         .layer(middleware::from_fn(MethodNotAllowed::middleware::<Body>))
         .fallback(NotFound::handler)
         .layer(TraceLayer::new_for_http());

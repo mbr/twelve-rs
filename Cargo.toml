@@ -9,9 +9,9 @@ axum = "0.7.4"
 envy = "0.4.2"
 futures-lite = "2.2.0"
 maud = "0.26.0"
-serde = "1.0.196"
+serde = { version = "1.0.196", features = [ "derive" ] }
 thiserror = "1.0.56"
 tokio = "1.36.0"
-tower-http = { version = "0.5.1", features = ["trace"] }
+tower-http = { version = "0.5.1", features = [ "trace", "fs" ] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = [ "env-filter" ] }
