@@ -8,7 +8,7 @@ use axum::{
         HeaderValue, Method, StatusCode, Uri,
     },
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use maud::{html, Markup, Render};
 use thiserror::Error;
@@ -158,6 +158,7 @@ impl AppError for MethodNotAllowed {
     }
 }
 
+#[derive(Debug)]
 pub struct Page(pub Markup);
 
 impl Page {
@@ -174,5 +175,33 @@ impl IntoResponse for Page {
             .header(CONTENT_TYPE, "text/html; charset=utf8")
             .body(Body::new(self.0.into_string()))
             .expect("should not fail to build response")
+    }
+}
+
+#[derive(Debug)]
+pub enum RedirectOnSuccess {
+    Page(Page),
+    Redirect(Redirect),
+}
+
+impl RedirectOnSuccess {
+    #[inline(always)]
+    pub fn ok<R: Render, E>(content: R) -> Result<RedirectOnSuccess, E> {
+        Page::ok(content).map(RedirectOnSuccess::Page)
+    }
+
+    #[inline(always)]
+    pub fn success<E>(uri: &str) -> Result<RedirectOnSuccess, E> {
+        Ok(RedirectOnSuccess::Redirect(Redirect::to(uri)))
+    }
+}
+
+impl IntoResponse for RedirectOnSuccess {
+    #[inline(always)]
+    fn into_response(self) -> Response {
+        match self {
+            RedirectOnSuccess::Page(page) => page.into_response(),
+            RedirectOnSuccess::Redirect(redirect) => redirect.into_response(),
+        }
     }
 }
