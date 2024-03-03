@@ -4,6 +4,7 @@ mod app_builder;
 pub mod page;
 mod request_context;
 pub mod util;
+pub mod widgets;
 
 use serde::de::DeserializeOwned;
 
