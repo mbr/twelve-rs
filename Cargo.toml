@@ -2,17 +2,11 @@
 name = "twelve"
 version = "0.2.0"
 edition = "2021"
-description = "Twelve-factor app configuration for axum"
+description = "Twelve-factor app utilities for axum"
 
 [dependencies]
-anyhow = "1"
 axum = "0.8"
-envy = "0.4"
 maud = { version = "0.27", features = ["axum"] }
-serde = { version = "1", features = ["derive"] }
-sqlx = { version = "0.9", features = ["postgres"] }
 thiserror = "2"
-tokio = { version = "1", features = ["signal"] }
-tower-http = { version = "0.6", features = ["trace", "fs"] }
+tokio = { version = "1", features = ["signal", "macros"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
