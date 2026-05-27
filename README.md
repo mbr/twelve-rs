@@ -1,6 +1,6 @@
 # Twelve factor webapp crate
 
-`twelve` is a support crate for creating twelve-factor webapps with [`axum`](https://docs.rs/axum/latest/axum/) and [`maud`](https://docs.rs/maud/latest/maud/).
+`twelve` is a support crate for creating twelve-factor webapps with [`axum`](https://docs.rs/axum/latest/axum/).
 
 ## Features
 

@@ -1,13 +1,12 @@
-use std::{env, fmt::Debug, iter, sync::OnceLock};
+use std::{env, fmt::Debug, sync::OnceLock};
 
 use axum::{
-    body::Body,
     extract::Request,
-    http::{header, HeaderValue, Method, StatusCode, Uri},
+    http::{Method, StatusCode, Uri},
     middleware::Next,
-    response::{IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Redirect, Response},
 };
-use maud::{html, Markup, Render};
+use html_escape::encode_text;
 use thiserror::Error;
 
 /// Whether or not to allow users that are being returned an error detailed insight.
@@ -15,8 +14,8 @@ static DETAILED_ERRORS: OnceLock<bool> = OnceLock::new();
 
 /// An error message page.
 ///
-/// Contains context from a given request informing how to build a response (e.g. whether or not a
-/// user has permissions to view debug output).
+/// Renders a simple HTML error page with the status code and error chain.
+/// Error details are shown if `DEBUG=1` or `DEBUG=true`, or if the error is user-visible.
 #[derive(Debug)]
 pub struct ErrorPage<E>(E);
 
@@ -27,48 +26,32 @@ impl<E> From<E> for ErrorPage<E> {
     }
 }
 
-impl<E> Render for ErrorPage<E>
+impl<E> ErrorPage<E>
 where
     E: AppError,
 {
-    fn render(&self) -> Markup {
+    fn render(&self) -> String {
         let detailed_errors = *DETAILED_ERRORS.get_or_init(|| {
             let debug_var = env::var("DEBUG").unwrap_or_default();
             let debug_trimmed = debug_var.trim();
-
             debug_trimmed == "true" || debug_trimmed == "1"
         });
 
-        let details = || {
+        let mut html = format!(
+            "<!DOCTYPE html><html><body><h1>{}</h1>",
+            encode_text(&self.0.status_code().to_string())
+        );
+
+        if detailed_errors || self.0.user_visible() {
             let mut cur: Option<&dyn std::error::Error> = Some(&self.0);
-            let errors = iter::from_fn(move || {
-                let next_err = cur?;
-                cur = next_err.source();
-                Some(next_err)
-            });
-
-            html! {
-                @for err in errors {
-                    hr;
-                    pre { (err) }
-                }
-            }
-        };
-
-        html! {
-            DOCTYPE;
-
-            html {
-                body {
-                    h1 {
-                        (self.0.status_code())
-                    }
-                    @if detailed_errors || self.0.user_visible() {
-                        (details())
-                    }
-                }
+            while let Some(err) = cur {
+                html.push_str(&format!("<hr><pre>{}</pre>", encode_text(&err.to_string())));
+                cur = err.source();
             }
         }
+
+        html.push_str("</body></html>");
+        html
     }
 }
 
@@ -77,25 +60,18 @@ where
     E: AppError,
 {
     fn into_response(self) -> Response {
-        Response::builder()
-            .status(self.0.status_code())
-            .header(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("text/html; charset=utf-8"),
-            )
-            .body(Body::from(self.render().into_string()))
-            .expect("should never fail to build response from string")
+        (self.0.status_code(), Html(self.render())).into_response()
     }
 }
 
 pub trait AppError: Debug + std::error::Error {
-    /// The error code associated with a given error.
+    /// The HTTP status code for this error.
     #[inline(always)]
     fn status_code(&self) -> StatusCode {
         StatusCode::INTERNAL_SERVER_ERROR
     }
 
-    /// Whether or not details about the error should be displayed to regular users.
+    /// Whether error details should be shown to users (even without DEBUG).
     #[inline(always)]
     fn user_visible(&self) -> bool {
         self.status_code() != StatusCode::INTERNAL_SERVER_ERROR
@@ -136,7 +112,7 @@ impl MethodNotAllowed {
     }
 
     #[inline]
-    pub async fn middleware<B>(req: Request, next: Next) -> Response {
+    pub async fn middleware(req: Request, next: Next) -> Response {
         let method = req.method().clone();
         let response = next.run(req).await;
 
@@ -155,29 +131,34 @@ impl AppError for MethodNotAllowed {
     }
 }
 
+/// Response type for POST handlers that redirect on success or render a page on error.
+///
+/// Implements the POST-Redirect-GET pattern.
 #[derive(Debug)]
-pub enum RedirectOnSuccess {
-    Page(Markup),
+pub enum RedirectOnSuccess<T = Response> {
+    Page(T),
     Redirect(Redirect),
 }
 
-impl RedirectOnSuccess {
+impl<T> RedirectOnSuccess<T> {
+    /// Return a page response (e.g., form with validation errors).
     #[inline(always)]
-    pub fn page<R: Render, E>(content: R) -> Result<RedirectOnSuccess, E> {
-        Ok(RedirectOnSuccess::Page(content.render()))
+    pub fn page<E>(content: T) -> Result<Self, E> {
+        Ok(RedirectOnSuccess::Page(content))
     }
 
+    /// Return a redirect response (e.g., after successful form submission).
     #[inline(always)]
-    pub fn redirect<E>(uri: &str) -> Result<RedirectOnSuccess, E> {
+    pub fn redirect<E>(uri: &str) -> Result<Self, E> {
         Ok(RedirectOnSuccess::Redirect(Redirect::to(uri)))
     }
 }
 
-impl IntoResponse for RedirectOnSuccess {
+impl<T: IntoResponse> IntoResponse for RedirectOnSuccess<T> {
     #[inline(always)]
     fn into_response(self) -> Response {
         match self {
-            RedirectOnSuccess::Page(markup) => markup.into_response(),
+            RedirectOnSuccess::Page(page) => page.into_response(),
             RedirectOnSuccess::Redirect(redirect) => redirect.into_response(),
         }
     }
