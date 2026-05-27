@@ -16,7 +16,7 @@ pub struct RequestContext {
 }
 
 impl RequestContext {
-    /// Constructs an relative url (no scheme or host).
+    /// Constructs a relative URL (no scheme or host).
     ///
     /// # Panics
     ///
@@ -29,7 +29,7 @@ impl RequestContext {
             parts.path_and_query = Some(
                 (script_name.clone() + "/" + path.as_ref())
                     .parse()
-                    .expect("should not faild to parse?"),
+                    .expect("should not fail to parse"),
             );
         } else {
             parts.path_and_query = Some(
