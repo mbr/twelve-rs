@@ -8,3 +8,4 @@ It also is aimed at working with a fixed set of crates, most importantly [`axum`
 
 * (0.2) `util::graceful_shutdown`: Replace with `tokio::signal::unix::signal()` for SIGTERM/SIGINT handling.
 * (0.2) `util::as_opt_str`: Replace with `Option::as_deref()` (stable since Rust 1.40).
+* (0.2) `from_env()`: Call `envy::from_env()` directly.
