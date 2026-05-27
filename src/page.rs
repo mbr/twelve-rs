@@ -3,10 +3,7 @@ use std::{env, fmt::Debug, iter, sync::OnceLock};
 use axum::{
     body::Body,
     extract::Request,
-    http::{
-        header::{self, CONTENT_TYPE},
-        HeaderValue, Method, StatusCode, Uri,
-    },
+    http::{header, HeaderValue, Method, StatusCode, Uri},
     middleware::Next,
     response::{IntoResponse, Redirect, Response},
 };
@@ -159,39 +156,19 @@ impl AppError for MethodNotAllowed {
 }
 
 #[derive(Debug)]
-pub struct Page(pub Markup);
-
-impl Page {
-    #[inline(always)]
-    pub fn ok<R: Render, E>(content: R) -> Result<Self, E> {
-        Ok(Self(content.render()))
-    }
-}
-
-impl IntoResponse for Page {
-    fn into_response(self) -> axum::response::Response {
-        Response::builder()
-            .status(200)
-            .header(CONTENT_TYPE, "text/html; charset=utf8")
-            .body(Body::new(self.0.into_string()))
-            .expect("should not fail to build response")
-    }
-}
-
-#[derive(Debug)]
 pub enum RedirectOnSuccess {
-    Page(Page),
+    Page(Markup),
     Redirect(Redirect),
 }
 
 impl RedirectOnSuccess {
     #[inline(always)]
-    pub fn ok<R: Render, E>(content: R) -> Result<RedirectOnSuccess, E> {
-        Page::ok(content).map(RedirectOnSuccess::Page)
+    pub fn page<R: Render, E>(content: R) -> Result<RedirectOnSuccess, E> {
+        Ok(RedirectOnSuccess::Page(content.render()))
     }
 
     #[inline(always)]
-    pub fn success<E>(uri: &str) -> Result<RedirectOnSuccess, E> {
+    pub fn redirect<E>(uri: &str) -> Result<RedirectOnSuccess, E> {
         Ok(RedirectOnSuccess::Redirect(Redirect::to(uri)))
     }
 }
@@ -200,7 +177,7 @@ impl IntoResponse for RedirectOnSuccess {
     #[inline(always)]
     fn into_response(self) -> Response {
         match self {
-            RedirectOnSuccess::Page(page) => page.into_response(),
+            RedirectOnSuccess::Page(markup) => markup.into_response(),
             RedirectOnSuccess::Redirect(redirect) => redirect.into_response(),
         }
     }
