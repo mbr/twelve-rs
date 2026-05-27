@@ -1,5 +1,4 @@
 use axum::{
-    async_trait,
     extract::FromRequestParts,
     http::{
         request::Parts,
@@ -52,8 +51,7 @@ impl RequestContext {
     }
 }
 
-#[async_trait]
-impl<S> FromRequestParts<S> for RequestContext {
+impl<S: Send + Sync> FromRequestParts<S> for RequestContext {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {

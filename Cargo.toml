@@ -5,16 +5,16 @@ edition = "2021"
 description = "Twelve-factor app configuration for axum"
 
 [dependencies]
-anyhow = "1.0.79"
-async-signal = "0.2.5"
-axum = "0.7.4"
-envy = "0.4.2"
-futures-lite = "2.2.0"
-maud = "0.26.0"
-serde = { version = "1.0.196", features = [ "derive" ] }
-sqlx = { version = "0.7.3", features = ["postgres"] }
-thiserror = "1.0.56"
-tokio = "1.36.0"
-tower-http = { version = "0.5.1", features = [ "trace", "fs" ] }
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = [ "env-filter" ] }
+anyhow = "1"
+async-signal = "0.2"
+axum = "0.8"
+envy = "0.4"
+futures-lite = "2"
+maud = "0.27"
+serde = { version = "1", features = ["derive"] }
+sqlx = { version = "0.9", features = ["postgres"] }
+thiserror = "2"
+tokio = "1"
+tower-http = { version = "0.6", features = ["trace", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
