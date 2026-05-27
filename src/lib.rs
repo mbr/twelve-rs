@@ -3,7 +3,6 @@
 mod app_builder;
 pub mod page;
 mod request_context;
-pub mod util;
 pub mod widgets;
 
 pub use app_builder::AppBuilder;

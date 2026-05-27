@@ -9,10 +9,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use tracing::info;
 
-use crate::{
-    page::{MethodNotAllowed, NotFound},
-    util,
-};
+use crate::page::{MethodNotAllowed, NotFound};
 
 #[derive(Debug)]
 pub struct AppBuilder {
@@ -50,7 +47,7 @@ impl AppBuilder {
             .await
             .expect("could not bind to port");
         axum::serve(listener, service)
-            .with_graceful_shutdown(util::graceful_shutdown::setup_and_wait_for_shutdown())
+            .with_graceful_shutdown(shutdown_signal())
             .await?;
 
         Ok(())
@@ -81,4 +78,18 @@ fn default_static_dir() -> PathBuf {
 #[inline(always)]
 fn default_port() -> u16 {
     3000
+}
+
+async fn shutdown_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+    let mut sigquit = signal(SignalKind::quit()).expect("failed to register SIGQUIT handler");
+
+    tokio::select! {
+        _ = sigterm.recv() => info!("received SIGTERM, shutting down"),
+        _ = sigint.recv() => info!("received SIGINT, shutting down"),
+        _ = sigquit.recv() => info!("received SIGQUIT, shutting down"),
+    }
 }
