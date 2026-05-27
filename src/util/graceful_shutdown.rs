@@ -35,9 +35,8 @@ use tracing::{info, warn};
 ///
 /// Will panic if there are any issues registering the signal handlers.
 pub fn setup_and_wait_for_shutdown() -> impl Future<Output = ()> {
-    let mut signal_listener =
-        async_signal::Signals::new(&[Signal::Term, Signal::Int, Signal::Quit])
-            .expect("could not register signal handler for graceful shutdown");
+    let mut signal_listener = async_signal::Signals::new([Signal::Term, Signal::Int, Signal::Quit])
+        .expect("could not register signal handler for graceful shutdown");
 
     async move {
         match signal_listener.next().await {

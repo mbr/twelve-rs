@@ -6,10 +6,9 @@ mod request_context;
 pub mod util;
 pub mod widgets;
 
-use serde::de::DeserializeOwned;
-
 pub use app_builder::AppBuilder;
 pub use request_context::RequestContext;
+use serde::de::DeserializeOwned;
 
 #[inline(always)]
 pub fn from_env<T>() -> T

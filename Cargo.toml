@@ -2,6 +2,7 @@
 name = "twelve"
 version = "0.1.0"
 edition = "2021"
+description = "Twelve-factor app configuration for axum"
 
 [dependencies]
 anyhow = "1.0.79"
