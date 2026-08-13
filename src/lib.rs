@@ -5,6 +5,7 @@ use std::future::{pending, Future};
 use tokio::signal::unix::{signal, Signal, SignalKind};
 use tracing::{error, info};
 
+pub mod config;
 pub mod page;
 mod request_context;
 

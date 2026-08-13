@@ -21,6 +21,11 @@ include = [
 [dependencies]
 axum = "0.8"
 html-escape = "0.2"
+serde = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["signal", "macros"] }
+toml = "0.8"
 tracing = "0.1"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }

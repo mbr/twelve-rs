@@ -6,11 +6,18 @@
 
 ## Features
 
+* `config::from_args()` - Typed TOML configuration from a file or standard input
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
 * `page::ErrorPage` - HTML error page rendering with error chain display
 * `page::AppError` - Trait for mapping errors to HTTP status codes
 * `page::RedirectOnSuccess` - POST-Redirect-GET pattern helper
+
+## Configuration
+
+The twelve-factor methodology conventionally places deployment configuration in environment variables. Structured TOML configuration technically departs from that prescription, but preserves its central separation between configuration, source code, and application builds. A deployment can generate or mount a TOML file and pass its path as the application's sole argument; `-` reads the document from standard input.
+
+TOML provides a direct representation for nested structures, collections, and quoted values. Applications whose configuration maps cleanly to flat environment variables may prefer [`envy`](https://docs.rs/envy) instead.
 
 ## Removed features
 
