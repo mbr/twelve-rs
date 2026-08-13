@@ -138,18 +138,16 @@ pub struct ParseListenAddressError {
 pub struct LogFilter(EnvFilter);
 
 impl FromStr for LogFilter {
-    type Err = ParseLogFilterError;
+    type Err = ParseError;
 
     /// Parses a tracing filter.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        EnvFilter::try_new(value)
-            .map(Self)
-            .map_err(|source| ParseLogFilterError { source })
+        EnvFilter::try_new(value).map(Self)
     }
 }
 
 impl TryFrom<String> for LogFilter {
-    type Error = ParseLogFilterError;
+    type Error = ParseError;
 
     /// Parses an owned tracing filter.
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -169,15 +167,6 @@ impl Display for LogFilter {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(formatter)
     }
-}
-
-/// Describes an invalid tracing filter.
-#[derive(Debug, Error)]
-#[error("invalid tracing filter")]
-pub struct ParseLogFilterError {
-    /// Provides the underlying filter error.
-    #[source]
-    source: ParseError,
 }
 
 /// Provides configuration shared by web applications.
