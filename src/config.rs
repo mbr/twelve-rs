@@ -91,12 +91,12 @@ impl Display for Location {
 /// let ipv4: ListenAddress = "127.0.0.1:3000".parse()?;
 /// let ipv6: ListenAddress = "[::1]:3000".parse()?;
 /// let unix: ListenAddress = "/run/myapp/http.sock".parse()?;
-/// let inherited: ListenAddress = "fd://4".parse()?;
+/// let inherited: ListenAddress = "fd://3".parse()?;
 ///
 /// assert!(matches!(ipv4, ListenAddress::Tcp(_)));
 /// assert!(matches!(ipv6, ListenAddress::Tcp(_)));
 /// assert!(matches!(unix, ListenAddress::Unix(_)));
-/// assert_eq!(inherited, ListenAddress::FileDescriptor(4));
+/// assert_eq!(inherited, ListenAddress::FileDescriptor(3));
 /// # Ok::<(), twelve::config::ParseListenAddressError>(())
 /// ```
 #[derive(Debug, Deserialize, Eq, PartialEq)]
