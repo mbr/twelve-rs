@@ -2,6 +2,8 @@
 
 `twelve` is a support crate for creating twelve-factor webapps with [`axum`](https://docs.rs/axum/latest/axum/).
 
+> **Warning:** Parts of this crate are still exploratory. Expect substantial API breakage between major versions.
+
 ## Features
 
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT/SIGQUIT
