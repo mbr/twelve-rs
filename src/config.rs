@@ -15,7 +15,6 @@ use std::{
     fs,
     io::{self, Read},
     net::{AddrParseError, SocketAddr},
-    num::ParseIntError,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -81,9 +80,9 @@ impl Display for Location {
 /// Identifies an HTTP listener.
 ///
 /// Numeric IPv4 and IPv6 socket addresses select TCP. Absolute filesystem
-/// paths select Unix-domain sockets. A `fd://N` address selects a listening
-/// file descriptor inherited through systemd socket activation. Hostnames and
-/// relative paths are not accepted.
+/// paths select Unix-domain sockets. `systemd` selects the sole listener
+/// inherited through systemd socket activation. Hostnames and relative paths
+/// are not accepted.
 ///
 /// ```
 /// use twelve::config::ListenAddress;
@@ -91,12 +90,12 @@ impl Display for Location {
 /// let ipv4: ListenAddress = "127.0.0.1:3000".parse()?;
 /// let ipv6: ListenAddress = "[::1]:3000".parse()?;
 /// let unix: ListenAddress = "/run/myapp/http.sock".parse()?;
-/// let inherited: ListenAddress = "fd://3".parse()?;
+/// let inherited: ListenAddress = "systemd".parse()?;
 ///
 /// assert!(matches!(ipv4, ListenAddress::Tcp(_)));
 /// assert!(matches!(ipv6, ListenAddress::Tcp(_)));
 /// assert!(matches!(unix, ListenAddress::Unix(_)));
-/// assert_eq!(inherited, ListenAddress::FileDescriptor(3));
+/// assert_eq!(inherited, ListenAddress::Systemd);
 /// # Ok::<(), twelve::config::ParseListenAddressError>(())
 /// ```
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -108,32 +107,24 @@ pub enum ListenAddress {
     /// Listens on a Unix-domain socket.
     Unix(PathBuf),
 
-    /// Uses an inherited listening file descriptor.
-    FileDescriptor(i32),
+    /// Uses a listener inherited through systemd socket activation.
+    Systemd,
 }
 
 impl FromStr for ListenAddress {
     type Err = ParseListenAddressError;
 
-    /// Parses a TCP address, Unix socket path, or inherited descriptor.
+    /// Parses a TCP address, Unix socket path, or socket activation policy.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if let Some(descriptor) = value.strip_prefix("fd://") {
-            let descriptor = descriptor
-                .parse()
-                .map_err(|source| ParseListenAddressError::FileDescriptor { source })?;
-
-            if descriptor < 3 {
-                return Err(ParseListenAddressError::ReservedFileDescriptor { descriptor });
-            }
-
-            Ok(Self::FileDescriptor(descriptor))
+        if value == "systemd" {
+            Ok(Self::Systemd)
         } else if Path::new(value).is_absolute() {
             Ok(Self::Unix(PathBuf::from(value)))
         } else {
             value
                 .parse()
                 .map(Self::Tcp)
-                .map_err(|source| ParseListenAddressError::Address { source })
+                .map_err(|source| ParseListenAddressError { source })
         }
     }
 }
@@ -153,36 +144,18 @@ impl Display for ListenAddress {
         match self {
             Self::Tcp(address) => address.fmt(formatter),
             Self::Unix(path) => path.display().fmt(formatter),
-            Self::FileDescriptor(descriptor) => write!(formatter, "fd://{descriptor}"),
+            Self::Systemd => formatter.write_str("systemd"),
         }
     }
 }
 
 /// Describes an invalid HTTP listener address.
 #[derive(Debug, Error)]
-pub enum ParseListenAddressError {
-    /// Indicates that a direct listener address is invalid.
-    #[error("expected a TCP socket address, absolute Unix socket path, or fd://N")]
-    Address {
-        /// Provides the underlying TCP address error.
-        #[source]
-        source: AddrParseError,
-    },
-
-    /// Indicates that an inherited descriptor is not an integer.
-    #[error("invalid inherited listener descriptor: {source}")]
-    FileDescriptor {
-        /// Provides the integer parsing error.
-        #[source]
-        source: ParseIntError,
-    },
-
-    /// Indicates that a descriptor is reserved for standard process streams.
-    #[error("inherited listener descriptor must be 3 or greater, received {descriptor}")]
-    ReservedFileDescriptor {
-        /// Provides the invalid descriptor.
-        descriptor: i32,
-    },
+#[error("expected a TCP socket address, absolute Unix socket path, or systemd")]
+pub struct ParseListenAddressError {
+    /// Provides the underlying TCP address error.
+    #[source]
+    source: AddrParseError,
 }
 
 /// Holds a validated tracing filter.
@@ -366,7 +339,7 @@ mod tests {
         let unix: ListenAddress = "/run/myapp/http.sock"
             .parse()
             .expect("Unix listener should parse");
-        let inherited: ListenAddress = "fd://7".parse().expect("inherited descriptor should parse");
+        let inherited: ListenAddress = "systemd".parse().expect("socket activation should parse");
 
         assert_eq!(
             ipv6,
@@ -376,9 +349,8 @@ mod tests {
             unix,
             ListenAddress::Unix(PathBuf::from("/run/myapp/http.sock"))
         );
-        assert_eq!(inherited, ListenAddress::FileDescriptor(7));
-        assert_eq!(inherited.to_string(), "fd://7");
-        assert!("fd://2".parse::<ListenAddress>().is_err());
+        assert_eq!(inherited, ListenAddress::Systemd);
+        assert_eq!(inherited.to_string(), "systemd");
         assert!("myapp.sock".parse::<ListenAddress>().is_err());
     }
 }

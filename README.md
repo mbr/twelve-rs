@@ -26,7 +26,7 @@ Applications can flatten `config::Core` into their own Serde configuration to re
 
 ## Listener activation
 
-`listener::Listener::bind()` binds configured TCP and Unix addresses directly. With the default `systemd` feature, a configured `fd://N` address instead selects that listening descriptor from the systemd socket-activation environment. Disable default features to omit socket activation and its `listenfd` dependency.
+`listener::Listener::bind()` binds configured TCP and Unix addresses directly. With the default `systemd` feature, the configured value `systemd` instead consumes the sole listener from the systemd socket-activation environment. Disable default features to omit socket activation and its `listenfd` dependency.
 
 ## Removed features
 

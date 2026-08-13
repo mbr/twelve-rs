@@ -36,12 +36,12 @@ impl Listener {
     /// Acquires the configured listener.
     ///
     /// TCP and Unix addresses are bound directly. With the `systemd` feature,
-    /// `fd://N` selects an inherited listening descriptor.
+    /// the systemd policy selects the sole inherited listening descriptor.
     pub async fn bind(address: &ListenAddress) -> Result<Self, Error> {
         match address {
             ListenAddress::Tcp(address) => Self::bind_tcp(*address).await,
             ListenAddress::Unix(path) => Self::bind_unix(path),
-            ListenAddress::FileDescriptor(descriptor) => Self::inherit(*descriptor),
+            ListenAddress::Systemd => Self::inherit(),
         }
     }
 
@@ -88,41 +88,45 @@ impl Listener {
         })
     }
 
-    /// Inherits a configured listening descriptor.
+    /// Inherits the sole listener from the socket activation environment.
     #[cfg(feature = "systemd")]
-    fn inherit(descriptor: i32) -> Result<Self, Error> {
-        let first_descriptor = inherited_first_descriptor();
+    fn inherit() -> Result<Self, Error> {
         let mut inherited = ListenFd::from_env();
-        let index = descriptor_index(descriptor, first_descriptor, inherited.len())?;
 
-        match inherited.take_tcp_listener(index) {
-            Ok(Some(listener)) => Self::inherit_tcp(descriptor, listener),
-            Ok(None) => Err(Error::InheritedNotSupplied { descriptor }),
-            Err(_) => match inherited.take_unix_listener(index) {
-                Ok(Some(listener)) => Self::inherit_unix(descriptor, listener),
-                Ok(None) => Err(Error::InheritedNotSupplied { descriptor }),
-                Err(source) => Err(Error::InvalidInherited { descriptor, source }),
+        match inherited.len() {
+            0 => return Err(Error::NoInheritedListener),
+            1 => {}
+            count => return Err(Error::MultipleInheritedListeners { count }),
+        }
+
+        match inherited.take_tcp_listener(0) {
+            Ok(Some(listener)) => Self::inherit_tcp(listener),
+            Ok(None) => Err(Error::NoInheritedListener),
+            Err(_) => match inherited.take_unix_listener(0) {
+                Ok(Some(listener)) => Self::inherit_unix(listener),
+                Ok(None) => Err(Error::NoInheritedListener),
+                Err(source) => Err(Error::InvalidInherited { source }),
             },
         }
     }
 
-    /// Rejects inherited descriptors when socket activation is disabled.
+    /// Rejects socket activation when its feature is disabled.
     #[cfg(not(feature = "systemd"))]
-    fn inherit(descriptor: i32) -> Result<Self, Error> {
-        Err(Error::SocketActivationDisabled { descriptor })
+    fn inherit() -> Result<Self, Error> {
+        Err(Error::SocketActivationDisabled)
     }
 
     /// Converts an inherited TCP listener for Tokio.
     #[cfg(feature = "systemd")]
-    fn inherit_tcp(descriptor: i32, listener: std::net::TcpListener) -> Result<Self, Error> {
+    fn inherit_tcp(listener: std::net::TcpListener) -> Result<Self, Error> {
         let address = listener
             .local_addr()
-            .map_err(|source| Error::ReadInheritedTcpAddress { descriptor, source })?;
+            .map_err(|source| Error::ReadInheritedTcpAddress { source })?;
         listener
             .set_nonblocking(true)
-            .map_err(|source| Error::ConfigureInherited { descriptor, source })?;
+            .map_err(|source| Error::ConfigureInherited { source })?;
         let listener = TcpListener::from_std(listener)
-            .map_err(|source| Error::ConfigureInherited { descriptor, source })?;
+            .map_err(|source| Error::ConfigureInherited { source })?;
 
         Ok(Self {
             inner: Inner::Tcp(listener),
@@ -132,18 +136,15 @@ impl Listener {
 
     /// Converts an inherited Unix-domain listener for Tokio.
     #[cfg(feature = "systemd")]
-    fn inherit_unix(
-        descriptor: i32,
-        listener: std::os::unix::net::UnixListener,
-    ) -> Result<Self, Error> {
+    fn inherit_unix(listener: std::os::unix::net::UnixListener) -> Result<Self, Error> {
         let address = listener
             .local_addr()
-            .map_err(|source| Error::ReadInheritedUnixAddress { descriptor, source })?;
+            .map_err(|source| Error::ReadInheritedUnixAddress { source })?;
         listener
             .set_nonblocking(true)
-            .map_err(|source| Error::ConfigureInherited { descriptor, source })?;
+            .map_err(|source| Error::ConfigureInherited { source })?;
         let listener = UnixListener::from_std(listener)
-            .map_err(|source| Error::ConfigureInherited { descriptor, source })?;
+            .map_err(|source| Error::ConfigureInherited { source })?;
 
         Ok(Self {
             inner: Inner::Unix(listener),
@@ -308,21 +309,23 @@ impl AsyncWrite for Connection {
 /// Describes a failure to acquire a listener.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// Indicates that the configured descriptor was not supplied.
+    /// Indicates that no listener was supplied through socket activation.
     #[cfg(feature = "systemd")]
-    #[error("inherited listener descriptor {descriptor} was not supplied")]
-    InheritedNotSupplied {
-        /// Provides the requested descriptor.
-        descriptor: i32,
+    #[error("no listener was supplied through systemd socket activation")]
+    NoInheritedListener,
+
+    /// Indicates that socket activation supplied an ambiguous listener set.
+    #[cfg(feature = "systemd")]
+    #[error("expected one systemd socket activation listener, received {count}")]
+    MultipleInheritedListeners {
+        /// Provides the number of supplied listeners.
+        count: usize,
     },
 
     /// Indicates that an inherited descriptor is not a supported listener.
     #[cfg(feature = "systemd")]
-    #[error("inherited descriptor {descriptor} is not a TCP or Unix listener")]
+    #[error("inherited descriptor is not a TCP or Unix listener")]
     InvalidInherited {
-        /// Provides the requested descriptor.
-        descriptor: i32,
-
         /// Provides the descriptor validation error.
         #[source]
         source: io::Error,
@@ -330,11 +333,8 @@ pub enum Error {
 
     /// Indicates that an inherited TCP listener address could not be read.
     #[cfg(feature = "systemd")]
-    #[error("failed to read address of inherited TCP listener descriptor {descriptor}")]
+    #[error("failed to read inherited TCP listener address")]
     ReadInheritedTcpAddress {
-        /// Provides the requested descriptor.
-        descriptor: i32,
-
         /// Provides the socket error.
         #[source]
         source: io::Error,
@@ -342,11 +342,8 @@ pub enum Error {
 
     /// Indicates that an inherited Unix listener address could not be read.
     #[cfg(feature = "systemd")]
-    #[error("failed to read address of inherited Unix listener descriptor {descriptor}")]
+    #[error("failed to read inherited Unix listener address")]
     ReadInheritedUnixAddress {
-        /// Provides the requested descriptor.
-        descriptor: i32,
-
         /// Provides the socket error.
         #[source]
         source: io::Error,
@@ -354,11 +351,8 @@ pub enum Error {
 
     /// Indicates that an inherited listener could not be configured for Tokio.
     #[cfg(feature = "systemd")]
-    #[error("failed to configure inherited listener descriptor {descriptor} as nonblocking")]
+    #[error("failed to configure inherited listener as nonblocking")]
     ConfigureInherited {
-        /// Provides the requested descriptor.
-        descriptor: i32,
-
         /// Provides the socket error.
         #[source]
         source: io::Error,
@@ -366,11 +360,8 @@ pub enum Error {
 
     /// Indicates that socket activation is unavailable.
     #[cfg(not(feature = "systemd"))]
-    #[error("cannot inherit listener descriptor {descriptor} without the systemd feature")]
-    SocketActivationDisabled {
-        /// Provides the requested descriptor.
-        descriptor: i32,
-    },
+    #[error("cannot use systemd socket activation without the systemd feature")]
+    SocketActivationDisabled,
 
     /// Indicates that a TCP listener could not be bound.
     #[error("failed to bind TCP listener at {address}")]
@@ -409,30 +400,6 @@ pub enum Error {
         #[source]
         source: io::Error,
     },
-}
-
-/// Reads the first descriptor used by the activation environment.
-#[cfg(feature = "systemd")]
-fn inherited_first_descriptor() -> i32 {
-    std::env::var("LISTEN_FDS_FIRST_FD")
-        .ok()
-        .and_then(|descriptor| descriptor.parse().ok())
-        .unwrap_or(3)
-}
-
-/// Resolves a process descriptor to a `listenfd` index.
-#[cfg(feature = "systemd")]
-fn descriptor_index(descriptor: i32, first: i32, count: usize) -> Result<usize, Error> {
-    let index = descriptor
-        .checked_sub(first)
-        .and_then(|index| usize::try_from(index).ok())
-        .ok_or(Error::InheritedNotSupplied { descriptor })?;
-
-    if index < count {
-        Ok(index)
-    } else {
-        Err(Error::InheritedNotSupplied { descriptor })
-    }
 }
 
 #[cfg(test)]
@@ -479,25 +446,6 @@ mod tests {
 
         drop(listener);
         drop(socket);
-    }
-
-    /// Resolves inherited descriptors to activation-list indices.
-    #[cfg(feature = "systemd")]
-    #[test]
-    fn resolves_inherited_descriptor_indices() {
-        assert_eq!(
-            super::descriptor_index(3, 3, 3).expect("descriptor should exist"),
-            0
-        );
-        assert_eq!(
-            super::descriptor_index(5, 3, 3).expect("descriptor should exist"),
-            2
-        );
-        assert_eq!(
-            super::descriptor_index(8, 7, 2).expect("custom descriptor should exist"),
-            1
-        );
-        assert!(super::descriptor_index(6, 3, 3).is_err());
     }
 
     /// Removes a test socket from the filesystem.
