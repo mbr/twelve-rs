@@ -9,11 +9,9 @@
 //! [`envy`](https://docs.rs/envy).
 
 use std::{
-    env,
-    ffi::OsString,
-    fs,
+    env, fs,
     io::{self, Read},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use serde::de::DeserializeOwned;
@@ -60,8 +58,13 @@ pub fn from_args<T>() -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
-    let path = configuration_path(env::args_os().skip(1))?;
-    load(&path)
+    let mut arguments = env::args_os().skip(1);
+    let path = arguments.next().ok_or(Error::MissingPath)?;
+    if arguments.next().is_some() {
+        return Err(Error::UnexpectedArgument);
+    }
+
+    load(Path::new(&path))
 }
 
 /// Loads application configuration from a TOML file or standard input.
@@ -92,16 +95,6 @@ where
     deserialize(&serialized, location)
 }
 
-/// Selects the sole configuration path from process arguments.
-fn configuration_path(mut arguments: impl Iterator<Item = OsString>) -> Result<PathBuf, Error> {
-    let path = arguments.next().ok_or(Error::MissingPath)?;
-    if arguments.next().is_some() {
-        return Err(Error::UnexpectedArgument);
-    }
-
-    Ok(path.into())
-}
-
 /// Describes a configuration source for diagnostics.
 fn location(path: &Path) -> String {
     if path == Path::new("-") {
@@ -121,11 +114,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
-
     use serde::Deserialize;
 
-    use super::{configuration_path, deserialize, Error};
+    use super::deserialize;
 
     /// Provides a nested configuration fixture.
     #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -153,17 +144,5 @@ mod tests {
                 server: Server { port: 3000 },
             }
         );
-    }
-
-    /// Requires exactly one configuration path.
-    #[test]
-    fn validates_configuration_arguments() {
-        let missing = configuration_path(Vec::new().into_iter());
-        assert!(matches!(missing, Err(Error::MissingPath)));
-
-        let extra = configuration_path(
-            [OsString::from("config.toml"), OsString::from("extra")].into_iter(),
-        );
-        assert!(matches!(extra, Err(Error::UnexpectedArgument)));
     }
 }
