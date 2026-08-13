@@ -8,6 +8,7 @@
 
 * `config::from_args()` - Typed TOML configuration from a file or standard input
 * `config::Core` - Reusable listener and tracing configuration
+* `listener::Listener` - Transport-independent TCP and Unix listeners for Axum
 * `postgres::DatabaseUrl` - Validated, redacted PostgreSQL connection options (`postgres` feature)
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
@@ -22,6 +23,10 @@ The twelve-factor methodology conventionally places deployment configuration in 
 TOML provides a direct representation for nested structures, collections, and quoted values. Applications whose configuration maps cleanly to flat environment variables may prefer [`envy`](https://docs.rs/envy) instead.
 
 Applications can flatten `config::Core` into their own Serde configuration to reuse validated listener and tracing filter fields without changing the TOML structure. The optional `postgres` feature provides a validated PostgreSQL URL that keeps credentials out of diagnostic output.
+
+## Listener activation
+
+`listener::Listener::bind()` always binds the configured TCP or Unix address directly. The default `systemd` feature adds `listener::Listener::inherit_or_bind()`, which consumes a listener supplied through the service-manager environment when present and otherwise binds directly. Disable default features to omit socket activation and its `listenfd` dependency.
 
 ## Removed features
 

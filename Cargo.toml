@@ -19,17 +19,19 @@ include = [
 ]
 
 [features]
-default = []
+default = ["systemd"]
 postgres = ["dep:sec", "dep:sqlx"]
+systemd = ["dep:listenfd"]
 
 [dependencies]
 axum = "0.8"
 html-escape = "0.2"
+listenfd = { version = "1", optional = true }
 sec = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 sqlx = { version = "0.8", default-features = false, features = ["postgres"], optional = true }
 thiserror = "2"
-tokio = { version = "1", features = ["signal", "macros"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "signal"] }
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter"] }
