@@ -6,7 +6,7 @@
 
 ## Features
 
-* `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT/SIGQUIT
+* `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
 * `page::ErrorPage` - HTML error page rendering with error chain display
 * `page::AppError` - Trait for mapping errors to HTTP status codes
