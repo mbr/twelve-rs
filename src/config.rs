@@ -30,6 +30,22 @@ pub enum Location {
     File(PathBuf),
 }
 
+impl Location {
+    /// Reads the configuration document into a string.
+    fn read_to_string(&self) -> io::Result<String> {
+        match self {
+            Self::StandardInput => {
+                let mut serialized = String::new();
+                io::stdin()
+                    .lock()
+                    .read_to_string(&mut serialized)
+                    .map(|_| serialized)
+            }
+            Self::File(path) => fs::read_to_string(path),
+        }
+    }
+}
+
 impl From<OsString> for Location {
     /// Converts a process argument into a configuration location.
     fn from(value: OsString) -> Self {
@@ -116,17 +132,7 @@ fn load_location<T>(location: Location) -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
-    let serialized = match &location {
-        Location::StandardInput => {
-            let mut serialized = String::new();
-            io::stdin()
-                .lock()
-                .read_to_string(&mut serialized)
-                .map(|_| serialized)
-        }
-        Location::File(path) => fs::read_to_string(path),
-    };
-    let serialized = match serialized {
+    let serialized = match location.read_to_string() {
         Ok(serialized) => serialized,
         Err(source) => return Err(Error::Read { location, source }),
     };
