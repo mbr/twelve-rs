@@ -1,8 +1,22 @@
 [package]
 name = "twelve"
 version = "0.2.0"
-edition = "2021"
 description = "Twelve-factor app utilities for axum"
+repository = "https://github.com/mbr/twelve-rs"
+documentation = "https://docs.rs/twelve"
+readme = "README.md"
+keywords = ["axum", "twelve-factor", "web"]
+categories = ["web-programming::http-server"]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+rust-version = "1.80"
+include = [
+  "src/**/*",
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-APACHE",
+  "LICENSE-MIT",
+]
 
 [dependencies]
 axum = "0.8"
