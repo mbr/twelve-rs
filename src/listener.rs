@@ -158,6 +158,7 @@ impl AxumListener for Listener {
     type Io = Connection;
 
     /// Accepts a connection from either transport.
+    #[inline]
     async fn accept(&mut self) -> (Self::Io, Self::Addr) {
         match &mut self.inner {
             Inner::Tcp(listener) => {
@@ -172,6 +173,7 @@ impl AxumListener for Listener {
     }
 
     /// Returns the captured local address.
+    #[inline]
     fn local_addr(&self) -> io::Result<Self::Addr> {
         Ok(self.local_address.clone())
     }
@@ -218,6 +220,7 @@ impl Address {
 
 impl Display for Address {
     /// Formats a TCP address or Unix socket path.
+    #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Tcp(address) => address.fmt(formatter),
@@ -241,6 +244,7 @@ pub enum Connection {
 
 impl AsyncRead for Connection {
     /// Attempts to read bytes from the connection.
+    #[inline]
     fn poll_read(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
@@ -255,6 +259,7 @@ impl AsyncRead for Connection {
 
 impl AsyncWrite for Connection {
     /// Attempts to write bytes to the connection.
+    #[inline]
     fn poll_write(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
@@ -267,6 +272,7 @@ impl AsyncWrite for Connection {
     }
 
     /// Attempts to flush the connection.
+    #[inline]
     fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         match self.get_mut() {
             Self::Tcp(connection) => Pin::new(connection).poll_flush(context),
@@ -275,6 +281,7 @@ impl AsyncWrite for Connection {
     }
 
     /// Attempts to shut down the connection.
+    #[inline]
     fn poll_shutdown(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
@@ -286,6 +293,7 @@ impl AsyncWrite for Connection {
     }
 
     /// Reports whether vectored writes are supported.
+    #[inline]
     fn is_write_vectored(&self) -> bool {
         match self {
             Self::Tcp(connection) => connection.is_write_vectored(),
@@ -294,6 +302,7 @@ impl AsyncWrite for Connection {
     }
 
     /// Attempts to write multiple buffers to the connection.
+    #[inline]
     fn poll_write_vectored(
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
