@@ -9,6 +9,7 @@
 * `config::from_args()` - Typed TOML configuration from a file or standard input
 * `config::Core` - Reusable listener and tracing configuration
 * `listener::Listener` - Transport-independent TCP and Unix listeners for Axum
+* `systemd::ready()` - systemd readiness notification (`systemd` feature)
 * `postgres::DatabaseUrl` - Validated, redacted PostgreSQL connection options (`postgres` feature)
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
@@ -26,7 +27,7 @@ Applications can flatten `config::Core` into their own Serde configuration to re
 
 ## Listener activation
 
-`listener::Listener::bind()` binds configured TCP and Unix addresses directly. With the default `systemd` feature, the configured value `systemd` instead consumes the sole listener from the systemd socket-activation environment. Disable default features to omit socket activation and its `listenfd` dependency.
+`listener::Listener::bind()` binds configured TCP and Unix addresses directly. With the default `systemd` feature, the configured value `systemd` instead consumes the sole listener from the systemd socket-activation environment. Once all startup work is complete, `systemd::ready()` or `systemd::ready_with_status()` can report readiness. Disable default features to omit systemd integration and its dependencies.
 
 ## Removed features
 
