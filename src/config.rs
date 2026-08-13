@@ -78,6 +78,23 @@ impl Display for Location {
 }
 
 /// Identifies an HTTP listener.
+///
+/// Numeric IPv4 and IPv6 socket addresses select TCP. Absolute filesystem
+/// paths select Unix-domain sockets. Hostnames and relative paths are not
+/// accepted.
+///
+/// ```
+/// use twelve::config::ListenAddress;
+///
+/// let ipv4: ListenAddress = "127.0.0.1:3000".parse()?;
+/// let ipv6: ListenAddress = "[::1]:3000".parse()?;
+/// let unix: ListenAddress = "/run/myapp/http.sock".parse()?;
+///
+/// assert!(matches!(ipv4, ListenAddress::Tcp(_)));
+/// assert!(matches!(ipv6, ListenAddress::Tcp(_)));
+/// assert!(matches!(unix, ListenAddress::Unix(_)));
+/// # Ok::<(), twelve::config::ParseListenAddressError>(())
+/// ```
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(try_from = "String")]
 pub enum ListenAddress {
