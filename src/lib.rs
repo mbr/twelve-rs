@@ -7,6 +7,8 @@ use tracing::{error, info};
 
 pub mod config;
 pub mod page;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 mod request_context;
 
 pub use request_context::RequestContext;

@@ -14,11 +14,14 @@ use std::{
     fmt::{self, Display, Formatter},
     fs,
     io::{self, Read},
+    net::{AddrParseError, SocketAddr},
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Deserialize};
 use thiserror::Error;
+use tracing_subscriber::{filter::ParseError, EnvFilter};
 
 /// Identifies the source of a configuration document.
 #[derive(Debug, Eq, PartialEq)]
@@ -72,6 +75,121 @@ impl Display for Location {
             Self::File(path) => path.display().fmt(formatter),
         }
     }
+}
+
+/// Identifies an HTTP listener.
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(try_from = "String")]
+pub enum ListenAddress {
+    /// Listens on a TCP socket.
+    Tcp(SocketAddr),
+
+    /// Listens on a Unix-domain socket.
+    Unix(PathBuf),
+}
+
+impl FromStr for ListenAddress {
+    type Err = ParseListenAddressError;
+
+    /// Parses a TCP address or absolute Unix socket path.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if Path::new(value).is_absolute() {
+            Ok(Self::Unix(PathBuf::from(value)))
+        } else {
+            value
+                .parse()
+                .map(Self::Tcp)
+                .map_err(|source| ParseListenAddressError { source })
+        }
+    }
+}
+
+impl TryFrom<String> for ListenAddress {
+    type Error = ParseListenAddressError;
+
+    /// Parses an owned listener address.
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl Display for ListenAddress {
+    /// Formats the listener address.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Tcp(address) => address.fmt(formatter),
+            Self::Unix(path) => path.display().fmt(formatter),
+        }
+    }
+}
+
+/// Describes an invalid HTTP listener address.
+#[derive(Debug, Error)]
+#[error("expected a TCP socket address or absolute Unix socket path")]
+pub struct ParseListenAddressError {
+    /// Provides the underlying TCP address error.
+    #[source]
+    source: AddrParseError,
+}
+
+/// Holds a validated tracing filter.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(try_from = "String")]
+pub struct LogFilter(EnvFilter);
+
+impl FromStr for LogFilter {
+    type Err = ParseLogFilterError;
+
+    /// Parses a tracing filter.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        EnvFilter::try_new(value)
+            .map(Self)
+            .map_err(|source| ParseLogFilterError { source })
+    }
+}
+
+impl TryFrom<String> for LogFilter {
+    type Error = ParseLogFilterError;
+
+    /// Parses an owned tracing filter.
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl From<LogFilter> for EnvFilter {
+    /// Extracts the validated tracing filter.
+    fn from(filter: LogFilter) -> Self {
+        filter.0
+    }
+}
+
+impl Display for LogFilter {
+    /// Formats the tracing filter.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+/// Describes an invalid tracing filter.
+#[derive(Debug, Error)]
+#[error("invalid tracing filter")]
+pub struct ParseLogFilterError {
+    /// Provides the underlying filter error.
+    #[source]
+    source: ParseError,
+}
+
+/// Provides configuration shared by web applications.
+///
+/// This can be flattened into application-specific Serde configuration.
+#[derive(Debug, Deserialize)]
+pub struct Core {
+    /// Selects the address on which the HTTP server listens.
+    pub listen_address: ListenAddress,
+
+    /// Selects the tracing events emitted by the application.
+    pub log_filter: LogFilter,
 }
 
 /// Describes a failure to resolve or load application configuration.
@@ -157,40 +275,64 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{net::SocketAddr, path::PathBuf};
 
     use serde::Deserialize;
 
-    use super::{deserialize, Location};
+    use super::{deserialize, Core, ListenAddress, Location};
 
-    /// Provides a nested configuration fixture.
-    #[derive(Debug, Deserialize, Eq, PartialEq)]
+    /// Provides application-specific fields around shared configuration.
+    #[derive(Debug, Deserialize)]
+    #[serde(deny_unknown_fields)]
     struct Config {
-        /// Configures the server fixture.
-        server: Server,
+        /// Provides shared web application configuration.
+        #[serde(flatten)]
+        core: Core,
+
+        /// Selects an application-specific frontend directory.
+        frontend: PathBuf,
     }
 
-    /// Provides nested server fields for the configuration fixture.
-    #[derive(Debug, Deserialize, Eq, PartialEq)]
-    struct Server {
-        /// Selects the test listener port.
-        port: u16,
-    }
-
-    /// Deserializes structured TOML configuration.
+    /// Deserializes flattened shared configuration.
     #[test]
-    fn deserializes_structured_configuration() {
+    fn deserializes_flattened_core_configuration() {
         let config: Config = deserialize(
-            "[server]\nport = 3000\n",
+            concat!(
+                "listen_address = '127.0.0.1:3000'\n",
+                "log_filter = 'twelve=debug,tower_http=info'\n",
+                "frontend = '/srv/frontend'\n",
+            ),
             Location::File(PathBuf::from("test")),
         )
         .expect("configuration should deserialize");
 
         assert_eq!(
-            config,
-            Config {
-                server: Server { port: 3000 },
-            }
+            config.core.listen_address,
+            ListenAddress::Tcp(SocketAddr::from(([127, 0, 0, 1], 3000)))
         );
+        assert_eq!(
+            config.core.log_filter.to_string(),
+            "tower_http=info,twelve=debug"
+        );
+        assert_eq!(config.frontend, PathBuf::from("/srv/frontend"));
+    }
+
+    /// Parses each supported listener address family.
+    #[test]
+    fn parses_listener_addresses() {
+        let ipv6: ListenAddress = "[::1]:3000".parse().expect("IPv6 listener should parse");
+        let unix: ListenAddress = "/run/myapp/http.sock"
+            .parse()
+            .expect("Unix listener should parse");
+
+        assert_eq!(
+            ipv6,
+            ListenAddress::Tcp(SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], 3000)))
+        );
+        assert_eq!(
+            unix,
+            ListenAddress::Unix(PathBuf::from("/run/myapp/http.sock"))
+        );
+        assert!("myapp.sock".parse::<ListenAddress>().is_err());
     }
 }

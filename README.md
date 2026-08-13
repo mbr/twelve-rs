@@ -7,6 +7,8 @@
 ## Features
 
 * `config::from_args()` - Typed TOML configuration from a file or standard input
+* `config::Core` - Reusable listener and tracing configuration
+* `postgres::DatabaseUrl` - Validated, redacted PostgreSQL connection options (`postgres` feature)
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
 * `page::ErrorPage` - HTML error page rendering with error chain display
@@ -18,6 +20,8 @@
 The twelve-factor methodology conventionally places deployment configuration in environment variables. Structured TOML configuration technically departs from that prescription, but preserves its central separation between configuration, source code, and application builds. A deployment can generate or mount a TOML file and pass its path as the application's sole argument; `-` reads the document from standard input.
 
 TOML provides a direct representation for nested structures, collections, and quoted values. Applications whose configuration maps cleanly to flat environment variables may prefer [`envy`](https://docs.rs/envy) instead.
+
+Applications can flatten `config::Core` into their own Serde configuration to reuse validated listener and tracing filter fields without changing the TOML structure. The optional `postgres` feature provides a validated PostgreSQL URL that keeps credentials out of diagnostic output.
 
 ## Removed features
 
