@@ -1,11 +1,9 @@
 //! Loads structured deployment configuration from TOML.
 //!
-//! Twelve-factor applications conventionally receive configuration through
-//! environment variables. A deployment-supplied configuration file departs
-//! from that literal prescription while retaining the separation of
-//! configuration from source code and application builds. TOML is useful when
-//! configuration contains nested structures, collections, or values requiring
-//! explicit quoting.
+//! The twelve-factor methodology recommends environment variables for
+//! configuration. This module uses deployment-supplied TOML instead. It keeps
+//! configuration separate from source and builds while making nested values
+//! and collections straightforward to express.
 //!
 //! Applications with flat environment-based configuration may prefer
 //! [`envy`](https://docs.rs/envy).
