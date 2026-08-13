@@ -10,7 +10,7 @@
 
 use std::{
     env,
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     fmt::{self, Display, Formatter},
     fs,
     io::{self, Read},
@@ -46,14 +46,21 @@ impl Location {
     }
 }
 
+impl From<PathBuf> for Location {
+    /// Converts a path into a configuration location.
+    fn from(path: PathBuf) -> Self {
+        if path.as_path() == Path::new("-") {
+            Self::StandardInput
+        } else {
+            Self::File(path)
+        }
+    }
+}
+
 impl From<OsString> for Location {
     /// Converts a process argument into a configuration location.
     fn from(value: OsString) -> Self {
-        if value.as_os_str() == OsStr::new("-") {
-            Self::StandardInput
-        } else {
-            Self::File(value.into())
-        }
+        PathBuf::from(value).into()
     }
 }
 
@@ -124,7 +131,7 @@ pub fn load<T>(path: &Path) -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
-    load_location(path.as_os_str().to_owned().into())
+    load_location(path.to_owned().into())
 }
 
 /// Loads application configuration from a resolved location.
