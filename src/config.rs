@@ -9,13 +9,47 @@
 //! [`envy`](https://docs.rs/envy).
 
 use std::{
-    env, fs,
+    env,
+    ffi::{OsStr, OsString},
+    fmt::{self, Display, Formatter},
+    fs,
     io::{self, Read},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use serde::de::DeserializeOwned;
 use thiserror::Error;
+
+/// Identifies the source of a configuration document.
+#[derive(Debug, Eq, PartialEq)]
+pub enum Location {
+    /// Reads configuration from standard input.
+    StandardInput,
+
+    /// Reads configuration from a file.
+    File(PathBuf),
+}
+
+impl From<OsString> for Location {
+    /// Converts a process argument into a configuration location.
+    fn from(value: OsString) -> Self {
+        if value.as_os_str() == OsStr::new("-") {
+            Self::StandardInput
+        } else {
+            Self::File(value.into())
+        }
+    }
+}
+
+impl Display for Location {
+    /// Formats the location for diagnostics.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StandardInput => formatter.write_str("standard input"),
+            Self::File(path) => path.display().fmt(formatter),
+        }
+    }
+}
 
 /// Describes a failure to resolve or load application configuration.
 #[derive(Debug, Error)]
@@ -32,7 +66,7 @@ pub enum Error {
     #[error("failed to read configuration from {location}")]
     Read {
         /// Identifies the configuration source.
-        location: String,
+        location: Location,
 
         /// Provides the underlying input error.
         #[source]
@@ -43,7 +77,7 @@ pub enum Error {
     #[error("failed to parse configuration from {location}")]
     Parse {
         /// Identifies the configuration source.
-        location: String,
+        location: Location,
 
         /// Provides the underlying TOML error.
         #[source]
@@ -64,7 +98,7 @@ where
         return Err(Error::UnexpectedArgument);
     }
 
-    load(Path::new(&path))
+    load_location(path.into())
 }
 
 /// Loads application configuration from a TOML file or standard input.
@@ -74,38 +108,34 @@ pub fn load<T>(path: &Path) -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
-    let location = location(path);
-    let serialized = if path == Path::new("-") {
-        let mut serialized = String::new();
-        io::stdin()
-            .lock()
-            .read_to_string(&mut serialized)
-            .map_err(|source| Error::Read {
-                location: location.clone(),
-                source,
-            })?;
-        serialized
-    } else {
-        fs::read_to_string(path).map_err(|source| Error::Read {
-            location: location.clone(),
-            source,
-        })?
+    load_location(path.as_os_str().to_owned().into())
+}
+
+/// Loads application configuration from a resolved location.
+fn load_location<T>(location: Location) -> Result<T, Error>
+where
+    T: DeserializeOwned,
+{
+    let serialized = match &location {
+        Location::StandardInput => {
+            let mut serialized = String::new();
+            io::stdin()
+                .lock()
+                .read_to_string(&mut serialized)
+                .map(|_| serialized)
+        }
+        Location::File(path) => fs::read_to_string(path),
+    };
+    let serialized = match serialized {
+        Ok(serialized) => serialized,
+        Err(source) => return Err(Error::Read { location, source }),
     };
 
     deserialize(&serialized, location)
 }
 
-/// Describes a configuration source for diagnostics.
-fn location(path: &Path) -> String {
-    if path == Path::new("-") {
-        "standard input".to_owned()
-    } else {
-        path.display().to_string()
-    }
-}
-
 /// Deserializes a TOML document with source-aware diagnostics.
-fn deserialize<T>(serialized: &str, location: String) -> Result<T, Error>
+fn deserialize<T>(serialized: &str, location: Location) -> Result<T, Error>
 where
     T: DeserializeOwned,
 {
@@ -114,9 +144,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use serde::Deserialize;
 
-    use super::deserialize;
+    use super::{deserialize, Location};
 
     /// Provides a nested configuration fixture.
     #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -135,8 +167,11 @@ mod tests {
     /// Deserializes structured TOML configuration.
     #[test]
     fn deserializes_structured_configuration() {
-        let config: Config = deserialize("[server]\nport = 3000\n", "test".to_owned())
-            .expect("configuration should deserialize");
+        let config: Config = deserialize(
+            "[server]\nport = 3000\n",
+            Location::File(PathBuf::from("test")),
+        )
+        .expect("configuration should deserialize");
 
         assert_eq!(
             config,
