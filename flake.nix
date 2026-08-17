@@ -70,7 +70,7 @@
           rustEnv
           // {
             inputsFrom = [ self.packages.${system}.default ];
-            packages = [ devToolchain ];
+            nativeBuildInputs = [ devToolchain ];
             buildInputs = [ pkgs.nixfmt ];
             RUST_LOG = "debug";
           }
