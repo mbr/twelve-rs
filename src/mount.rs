@@ -1,10 +1,10 @@
-//! Builds internal links for applications mounted below a reverse-proxy path.
+//! Builds links and redirects for applications below a reverse-proxy path prefix.
 //!
-//! This module is useful when generated links and redirects must remain below
-//! an externally visible path prefix. The [`Mount`] extractor reads
-//! `X-Script-Name` and prepends it without rewriting request routing. A trusted
-//! reverse proxy should remove client-supplied values before setting the
-//! header.
+//! [`Mount`] reads `X-Script-Name` and prepends it to generated links and
+//! redirects. It does not rewrite request routing.
+//!
+//! **Warning:** The reverse proxy must remove client-supplied values before
+//! setting the header.
 //!
 //! ```
 //! use axum::response::Redirect;

@@ -1,15 +1,11 @@
-//! Loads typed application configuration from deployment-supplied TOML.
+//! Loads app configuration from a file or standard input.
 //!
-//! This module is useful for services whose configuration is too structured
-//! for a flat set of environment variables. [`from_args()`] implements a small
-//! process contract: the sole argument names a TOML file, or `-` reads standard
-//! input. Applications deserialize their own configuration type and can embed
-//! [`Core`] to share validated listener and tracing settings.
+//! [`from_args()`] parses a TOML configuration file named on the command line,
+//! or standard input if `-` is passed instead. Applications with flat
+//! configuration may prefer [`envy`](https://docs.rs/envy).
 //!
-//! This approach keeps configuration separate from source and builds, but
-//! departs literally from the twelve-factor recommendation to use environment
-//! variables. Applications with flat configuration may prefer
-//! [`envy`](https://docs.rs/envy).
+//! [`Core`] contains common configuration for most web applications and can be
+//! flattened into an existing configuration type.
 //!
 //! ```no_run
 //! use serde::Deserialize;

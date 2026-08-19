@@ -1,10 +1,8 @@
-//! Waits for conventional Unix termination signals for graceful shutdown.
+//! Coordinates graceful Tokio service shutdown on `SIGTERM` or `SIGINT`.
 //!
-//! This module is useful for long-running Tokio services that should stop
-//! accepting work on `SIGTERM` or `SIGINT` while allowing in-flight work to
-//! complete. [`signal()`] registers both handlers eagerly and resolves when the
-//! first registered signal arrives. Registration failures are logged instead
-//! of preventing startup, and `SIGQUIT` retains its default behavior.
+//! [`signal()`] registers both handlers eagerly and resolves when either signal
+//! arrives. Registration failures are logged and ignored. `SIGQUIT` retains
+//! its default behavior.
 //!
 //! ```no_run
 //! use axum::Router;

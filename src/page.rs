@@ -1,11 +1,9 @@
-//! Builds conventional HTML responses for server-rendered Axum applications.
+//! Provides classic HTML error pages and POST-Redirect-GET responses for Axum.
 //!
-//! This module is useful when handlers should turn application errors into
-//! simple status pages or implement POST-Redirect-GET without repeating
-//! response plumbing. Error responses deliberately use the classic web-server
-//! style: unstyled HTML with a status heading and, when appropriate, the error
-//! chain. The module is intentionally HTML-oriented; JSON APIs generally need
-//! an application-specific error contract instead.
+//! [`ErrorPage`] renders unstyled HTML with a status heading. It includes the
+//! error chain for user-visible errors or when `DEBUG` is enabled.
+//! [`RedirectOnSuccess`] represents either a page response or a success
+//! redirect. JSON APIs should define their own error contract.
 //!
 //! ```
 //! use axum::http::Uri;

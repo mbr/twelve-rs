@@ -1,10 +1,8 @@
-//! Validates PostgreSQL connection configuration without exposing credentials.
+//! Validates and redacts PostgreSQL connection URLs before passing them to SQLx.
 //!
-//! This module is useful at the boundary between serialized application
-//! configuration and SQLx. [`DatabaseUrl`] accepts PostgreSQL URLs eagerly,
-//! redacts them from diagnostic output, and yields parsed connection options
-//! for constructing a pool. Pooling, migrations, and query policy remain with
-//! the application.
+//! [`DatabaseUrl`] rejects other URL schemes, hides credentials in diagnostic
+//! output, and converts into SQLx connection options. Applications own pooling,
+//! migrations, and queries.
 //!
 //! ```
 //! use twelve::postgres::{DatabaseUrl, ParseDatabaseUrlError};
