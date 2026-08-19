@@ -80,9 +80,8 @@ impl Display for Location {
 /// Identifies an HTTP listener.
 ///
 /// Numeric IPv4 and IPv6 socket addresses select TCP. Absolute filesystem
-/// paths select Unix-domain sockets. `systemd` selects the sole listener
-/// inherited through systemd socket activation. Hostnames and relative paths
-/// are not accepted.
+/// paths select Unix-domain sockets. Hostnames and relative paths are not
+/// accepted.
 ///
 /// ```
 /// use twelve::config::ListenAddress;
@@ -90,12 +89,10 @@ impl Display for Location {
 /// let ipv4: ListenAddress = "127.0.0.1:3000".parse()?;
 /// let ipv6: ListenAddress = "[::1]:3000".parse()?;
 /// let unix: ListenAddress = "/run/myapp/http.sock".parse()?;
-/// let inherited: ListenAddress = "systemd".parse()?;
 ///
 /// assert!(matches!(ipv4, ListenAddress::Tcp(_)));
 /// assert!(matches!(ipv6, ListenAddress::Tcp(_)));
 /// assert!(matches!(unix, ListenAddress::Unix(_)));
-/// assert_eq!(inherited, ListenAddress::Systemd);
 /// # Ok::<(), twelve::config::ParseListenAddressError>(())
 /// ```
 #[derive(Debug, Deserialize, Eq, PartialEq)]
@@ -106,19 +103,14 @@ pub enum ListenAddress {
 
     /// Listens on a Unix-domain socket.
     Unix(PathBuf),
-
-    /// Uses a listener inherited through systemd socket activation.
-    Systemd,
 }
 
 impl FromStr for ListenAddress {
     type Err = ParseListenAddressError;
 
-    /// Parses a TCP address, Unix socket path, or socket activation policy.
+    /// Parses a TCP address or Unix socket path.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if value == "systemd" {
-            Ok(Self::Systemd)
-        } else if Path::new(value).is_absolute() {
+        if Path::new(value).is_absolute() {
             Ok(Self::Unix(PathBuf::from(value)))
         } else {
             value
@@ -144,14 +136,13 @@ impl Display for ListenAddress {
         match self {
             Self::Tcp(address) => address.fmt(formatter),
             Self::Unix(path) => path.display().fmt(formatter),
-            Self::Systemd => formatter.write_str("systemd"),
         }
     }
 }
 
 /// Describes an invalid HTTP listener address.
 #[derive(Debug, Error)]
-#[error("expected a TCP socket address, absolute Unix socket path, or systemd")]
+#[error("expected a TCP socket address or absolute Unix socket path")]
 pub struct ParseListenAddressError {
     /// Provides the underlying TCP address error.
     #[source]
@@ -339,7 +330,6 @@ mod tests {
         let unix: ListenAddress = "/run/myapp/http.sock"
             .parse()
             .expect("Unix listener should parse");
-        let inherited: ListenAddress = "systemd".parse().expect("socket activation should parse");
 
         assert_eq!(
             ipv6,
@@ -349,8 +339,7 @@ mod tests {
             unix,
             ListenAddress::Unix(PathBuf::from("/run/myapp/http.sock"))
         );
-        assert_eq!(inherited, ListenAddress::Systemd);
-        assert_eq!(inherited.to_string(), "systemd");
+        assert!("systemd".parse::<ListenAddress>().is_err());
         assert!("myapp.sock".parse::<ListenAddress>().is_err());
     }
 }

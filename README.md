@@ -25,9 +25,9 @@ TOML provides a direct representation for nested structures, collections, and qu
 
 Applications can flatten `config::Core` into their own Serde configuration to reuse validated listener and tracing filter fields without changing the TOML structure. The optional `postgres` feature provides a validated PostgreSQL URL that keeps credentials out of diagnostic output.
 
-## Listener activation
+## Listeners and readiness
 
-`listener::Listener::bind()` binds configured TCP and Unix addresses directly. With the default `systemd` feature, the configured value `systemd` instead consumes the sole listener from the systemd socket-activation environment. Once all startup work is complete, `systemd::ready()` or `systemd::ready_with_status()` can report readiness. Disable default features to omit systemd integration and its dependencies.
+`listener::Listener::bind()` binds configured TCP and Unix addresses for Axum. Once all startup work is complete, `systemd::ready()` or `systemd::ready_with_status()` can report readiness when the default `systemd` feature is enabled. Disable default features to omit systemd integration and its dependency.
 
 ## Removed features
 
