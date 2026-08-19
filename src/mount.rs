@@ -35,6 +35,9 @@ pub struct Mount {
 impl Mount {
     /// Constructs a relative URL (no scheme or host).
     ///
+    /// Exactly one slash separates the external mount prefix from the supplied
+    /// path. Slashes elsewhere in either value are preserved.
+    ///
     /// # Panics
     ///
     /// Will panic if generated Uris are invalid.
@@ -43,11 +46,12 @@ impl Mount {
         let mut parts: uri::Parts = Default::default();
 
         if let Some(ref script_name) = self.script_name {
-            parts.path_and_query = Some(
-                (script_name.clone() + "/" + path.as_ref())
-                    .parse()
-                    .expect("should not fail to parse"),
+            let path = format!(
+                "{}/{}",
+                script_name.trim_end_matches('/'),
+                path.as_ref().trim_start_matches('/'),
             );
+            parts.path_and_query = Some(path.parse().expect("should not fail to parse"));
         } else {
             parts.path_and_query = Some(
                 path.as_ref()
@@ -102,9 +106,10 @@ mod tests {
     #[test]
     fn internal_url_construction_with_reverse_proxy() {
         let mount = Mount {
-            script_name: Some("/sub/dir".to_owned()),
+            script_name: Some("/sub/dir///".to_owned()),
         };
 
         assert_eq!(mount.internal("foo/bar"), "/sub/dir/foo/bar");
+        assert_eq!(mount.internal("///foo/bar"), "/sub/dir/foo/bar");
     }
 }
