@@ -1,3 +1,21 @@
+//! Builds conventional HTML responses for server-rendered Axum applications.
+//!
+//! This module is useful when handlers should turn application errors into
+//! simple status pages or implement POST-Redirect-GET without repeating
+//! response plumbing. Error responses deliberately use the classic web-server
+//! style: unstyled HTML with a status heading and, when appropriate, the error
+//! chain. The module is intentionally HTML-oriented; JSON APIs generally need
+//! an application-specific error contract instead.
+//!
+//! ```
+//! use axum::http::Uri;
+//! use twelve::page::{ErrorPage, NotFound};
+//!
+//! async fn not_found(uri: Uri) -> ErrorPage<NotFound> {
+//!     NotFound::new(uri).into()
+//! }
+//! ```
+
 use std::{env, fmt::Debug, sync::OnceLock};
 
 use axum::{

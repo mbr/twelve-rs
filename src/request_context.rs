@@ -1,3 +1,10 @@
+//! Preserves an application's external path prefix behind a reverse proxy.
+//!
+//! This module supports applications mounted below a domain root. The
+//! [`RequestContext`] extractor reads `X-Script-Name` and uses it when building
+//! internal links and redirects, so generated navigation remains within the
+//! externally visible mount point.
+
 use axum::{
     extract::FromRequestParts,
     http::{
@@ -8,6 +15,16 @@ use axum::{
     response::Redirect,
 };
 
+/// Provides request-aware links for applications below a proxy path prefix.
+///
+/// ```
+/// use axum::response::Redirect;
+/// use twelve::RequestContext;
+///
+/// async fn account(context: RequestContext) -> Redirect {
+///     context.redirect_to("/account")
+/// }
+/// ```
 #[derive(Debug)]
 pub struct RequestContext {
     /// The absolute path on the domain that the app is running under.

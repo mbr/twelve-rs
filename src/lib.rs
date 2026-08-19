@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
 use std::future::{pending, Future};
@@ -8,8 +9,10 @@ use tracing::{error, info};
 pub mod config;
 pub mod listener;
 #[cfg(feature = "html")]
+#[cfg_attr(docsrs, doc(cfg(feature = "html")))]
 pub mod page;
 #[cfg(feature = "postgres")]
+#[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 pub mod postgres;
 mod request_context;
 

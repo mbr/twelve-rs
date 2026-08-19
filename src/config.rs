@@ -1,12 +1,32 @@
-//! Loads structured deployment configuration from TOML.
+//! Loads typed application configuration from deployment-supplied TOML.
 //!
-//! The twelve-factor methodology recommends environment variables for
-//! configuration. This module uses deployment-supplied TOML instead. It keeps
-//! configuration separate from source and builds while making nested values
-//! and collections straightforward to express.
+//! This module is useful for services whose configuration is too structured
+//! for a flat set of environment variables. [`from_args()`] implements a small
+//! process contract: the sole argument names a TOML file, or `-` reads standard
+//! input. Applications deserialize their own configuration type and can embed
+//! [`Core`] to share validated listener and tracing settings.
 //!
-//! Applications with flat environment-based configuration may prefer
+//! This approach keeps configuration separate from source and builds, but
+//! departs literally from the twelve-factor recommendation to use environment
+//! variables. Applications with flat configuration may prefer
 //! [`envy`](https://docs.rs/envy).
+//!
+//! ```no_run
+//! use serde::Deserialize;
+//! use twelve::config::{self, Core};
+//!
+//! #[derive(Deserialize)]
+//! struct Config {
+//!     #[serde(flatten)]
+//!     core: Core,
+//! }
+//!
+//! # fn main() -> Result<(), config::Error> {
+//! let configuration: Config = config::from_args()?;
+//! # let _ = configuration.core;
+//! # Ok(())
+//! # }
+//! ```
 
 use std::{
     env,

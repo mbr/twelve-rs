@@ -1,39 +1,17 @@
 # Twelve factor webapp crate
 
-`twelve` is a support crate for creating twelve-factor webapps with [`axum`](https://docs.rs/axum/latest/axum/).
+`twelve` provides small, composable building blocks for twelve-factor web
+applications built with [`axum`](https://docs.rs/axum/latest/axum/). It covers
+common process boundaries without prescribing application routing, database
+policy, or deployment topology.
 
 > **Warning:** Parts of this crate are still exploratory. Expect substantial API breakage between major versions.
 
-## Features
+Start with the major modules:
 
-* `config::from_args()` - Typed TOML configuration from a file or standard input
-* `config::Core` - Reusable listener and tracing configuration
-* `listener::Listener` - Transport-independent TCP and Unix listeners for Axum
-* `postgres::DatabaseUrl` - Validated, redacted PostgreSQL connection options (`postgres` feature)
-* `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
-* `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
-* `page::ErrorPage` - HTML error page rendering with error chain display (`html` feature)
-* `page::AppError` - Trait for mapping errors to HTTP status codes (`html` feature)
-* `page::RedirectOnSuccess` - POST-Redirect-GET pattern helper (`html` feature)
+* [`config`] loads typed TOML configuration and provides reusable validated settings.
+* [`listener`] binds application-owned TCP or Unix listeners for Axum.
+* [`page`] provides conventional server-rendered HTML responses with the optional `html` feature.
+* [`postgres`] validates and redacts PostgreSQL connection configuration with the optional `postgres` feature.
 
-## Configuration
-
-The twelve-factor methodology conventionally places deployment configuration in environment variables. Structured TOML configuration technically departs from that prescription, but preserves its central separation between configuration, source code, and application builds. A deployment can generate or mount a TOML file and pass its path as the application's sole argument; `-` reads the document from standard input.
-
-TOML provides a direct representation for nested structures, collections, and quoted values. Applications whose configuration maps cleanly to flat environment variables may prefer [`envy`](https://docs.rs/envy) instead.
-
-Applications can flatten `config::Core` into their own Serde configuration to reuse validated listener and tracing filter fields without changing the TOML structure. The optional `postgres` feature provides a validated PostgreSQL URL that keeps credentials out of diagnostic output.
-
-## Listeners
-
-`listener::Listener::bind()` binds configured TCP and Unix addresses for Axum.
-
-## Removed features
-
-* (0.3) `systemd`: Let the service manager supervise the application without an application-specific notification protocol.
-* (0.2) `util::graceful_shutdown`: Moved to `twelve::shutdown_signal()`.
-* (0.2) `util::as_opt_str`: Replace with `Option::as_deref()` (stable since Rust 1.40).
-* (0.2) `from_env()`: Call `envy::from_env()` directly.
-* (0.2) `page::Page`: Use `maud::Markup` directly (enable maud's `axum` feature).
-* (0.2) `AppBuilder`: Too opinionated. Copy the pattern if needed.
-* (0.2) `widgets`: Empty module removed.
+The crate root also provides [`shutdown_signal()`] for graceful termination and [`RequestContext`] for applications mounted below a reverse-proxy path prefix.

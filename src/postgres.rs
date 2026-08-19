@@ -1,4 +1,21 @@
-//! Provides PostgreSQL configuration types.
+//! Validates PostgreSQL connection configuration without exposing credentials.
+//!
+//! This module is useful at the boundary between serialized application
+//! configuration and SQLx. [`DatabaseUrl`] accepts PostgreSQL URLs eagerly,
+//! redacts them from diagnostic output, and yields parsed connection options
+//! for constructing a pool. Pooling, migrations, and query policy remain with
+//! the application.
+//!
+//! ```
+//! use twelve::postgres::{DatabaseUrl, ParseDatabaseUrlError};
+//!
+//! # fn main() -> Result<(), ParseDatabaseUrlError> {
+//! let database_url: DatabaseUrl =
+//!     "postgresql://user:password@localhost/application".parse()?;
+//! let _options = database_url.into_connect_options();
+//! # Ok(())
+//! # }
+//! ```
 
 use std::str::FromStr;
 

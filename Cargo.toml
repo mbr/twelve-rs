@@ -18,6 +18,10 @@ include = [
   "LICENSE-MIT",
 ]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 html = ["dep:html-escape"]
 postgres = ["dep:sec", "dep:sqlx"]

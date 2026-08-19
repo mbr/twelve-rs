@@ -1,4 +1,28 @@
-//! Opens TCP and Unix-domain listeners for Axum applications.
+//! Opens application-owned TCP and Unix-domain listeners for Axum.
+//!
+//! This module is useful when deployment configuration should select either
+//! transport without duplicating server startup code. [`Listener`] binds a
+//! [`crate::config::ListenAddress`], implements Axum's listener interface, and
+//! reports the effective runtime address, including an automatically assigned
+//! TCP port.
+//!
+//! Numeric IP socket addresses select TCP, while absolute filesystem paths
+//! select Unix-domain sockets. A [`crate::config::ListenAddress`] field in TOML
+//! loaded by [`crate::config::from_args()`] uses the same strings.
+//!
+//! ```no_run
+//! use twelve::{config::ListenAddress, listener::Listener};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let tcp: ListenAddress = "127.0.0.1:3000".parse()?;
+//! let unix: ListenAddress = "/run/myapp/http.sock".parse()?;
+//! let listener = Listener::bind(&tcp).await?;
+//!
+//! assert_eq!(listener.port(), Some(3000));
+//! assert_eq!(unix.to_string(), "/run/myapp/http.sock");
+//! # Ok(())
+//! # }
+//! ```
 
 use std::{
     fmt::{self, Display, Formatter},
