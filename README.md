@@ -13,5 +13,5 @@ Start with the major modules:
 * [`listener`] binds application-owned TCP or Unix listeners for Axum.
 * [`page`] provides conventional server-rendered HTML responses with the optional `html` feature.
 * [`postgres`] validates and redacts PostgreSQL connection configuration with the optional `postgres` feature.
-
-The crate root also provides [`shutdown_signal()`] for graceful termination and [`RequestContext`] for applications mounted below a reverse-proxy path prefix.
+* [`request_context`] builds links for applications mounted below a reverse-proxy path prefix.
+* [`shutdown`] waits for conventional process signals to coordinate graceful termination.
