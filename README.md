@@ -9,7 +9,6 @@
 * `config::from_args()` - Typed TOML configuration from a file or standard input
 * `config::Core` - Reusable listener and tracing configuration
 * `listener::Listener` - Transport-independent TCP and Unix listeners for Axum
-* `systemd::ready()` - systemd readiness notification (`systemd` feature)
 * `postgres::DatabaseUrl` - Validated, redacted PostgreSQL connection options (`postgres` feature)
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
@@ -25,12 +24,13 @@ TOML provides a direct representation for nested structures, collections, and qu
 
 Applications can flatten `config::Core` into their own Serde configuration to reuse validated listener and tracing filter fields without changing the TOML structure. The optional `postgres` feature provides a validated PostgreSQL URL that keeps credentials out of diagnostic output.
 
-## Listeners and readiness
+## Listeners
 
-`listener::Listener::bind()` binds configured TCP and Unix addresses for Axum. Once all startup work is complete, `systemd::ready()` or `systemd::ready_with_status()` can report readiness when the default `systemd` feature is enabled. Disable default features to omit systemd integration and its dependency.
+`listener::Listener::bind()` binds configured TCP and Unix addresses for Axum.
 
 ## Removed features
 
+* (0.3) `systemd`: Let the service manager supervise the application without an application-specific notification protocol.
 * (0.2) `util::graceful_shutdown`: Moved to `twelve::shutdown_signal()`.
 * (0.2) `util::as_opt_str`: Replace with `Option::as_deref()` (stable since Rust 1.40).
 * (0.2) `from_env()`: Call `envy::from_env()` directly.

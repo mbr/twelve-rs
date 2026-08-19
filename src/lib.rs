@@ -11,8 +11,6 @@ pub mod page;
 #[cfg(feature = "postgres")]
 pub mod postgres;
 mod request_context;
-#[cfg(feature = "systemd")]
-pub mod systemd;
 
 pub use request_context::RequestContext;
 
