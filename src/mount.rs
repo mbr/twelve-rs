@@ -1,17 +1,17 @@
 //! Builds internal links for applications mounted below a reverse-proxy path.
 //!
 //! This module is useful when generated links and redirects must remain below
-//! an externally visible path prefix. The [`RequestContext`] extractor reads
+//! an externally visible path prefix. The [`Mount`] extractor reads
 //! `X-Script-Name` and prepends it without rewriting request routing. A trusted
 //! reverse proxy should remove client-supplied values before setting the
 //! header.
 //!
 //! ```
 //! use axum::response::Redirect;
-//! use twelve::request_context::RequestContext;
+//! use twelve::mount::Mount;
 //!
-//! async fn account(context: RequestContext) -> Redirect {
-//!     context.redirect_to("/account")
+//! async fn account(mount: Mount) -> Redirect {
+//!     mount.redirect_to("/account")
 //! }
 //! ```
 
@@ -27,12 +27,12 @@ use axum::{
 
 /// Provides request-aware links for applications below a proxy path prefix.
 #[derive(Debug)]
-pub struct RequestContext {
+pub struct Mount {
     /// The absolute path on the domain that the app is running under.
     script_name: Option<String>,
 }
 
-impl RequestContext {
+impl Mount {
     /// Constructs a relative URL (no scheme or host).
     ///
     /// # Panics
@@ -69,7 +69,7 @@ impl RequestContext {
     }
 }
 
-impl<S: Send + Sync> FromRequestParts<S> for RequestContext {
+impl<S: Send + Sync> FromRequestParts<S> for Mount {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
@@ -84,27 +84,27 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestContext {
             None
         };
 
-        Ok(RequestContext { script_name })
+        Ok(Mount { script_name })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::RequestContext;
+    use super::Mount;
 
     #[test]
     fn internal_url_construction_without_reverse_proxy() {
-        let ctx = RequestContext { script_name: None };
+        let mount = Mount { script_name: None };
 
-        assert_eq!(ctx.internal("/foo/bar"), "/foo/bar");
+        assert_eq!(mount.internal("/foo/bar"), "/foo/bar");
     }
 
     #[test]
     fn internal_url_construction_with_reverse_proxy() {
-        let ctx = RequestContext {
+        let mount = Mount {
             script_name: Some("/sub/dir".to_owned()),
         };
 
-        assert_eq!(ctx.internal("foo/bar"), "/sub/dir/foo/bar");
+        assert_eq!(mount.internal("foo/bar"), "/sub/dir/foo/bar");
     }
 }
