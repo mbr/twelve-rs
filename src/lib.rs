@@ -3,6 +3,7 @@
 
 pub mod config;
 pub mod listener;
+pub mod logging;
 pub mod mount;
 #[cfg(feature = "html")]
 #[cfg_attr(docsrs, doc(cfg(feature = "html")))]
