@@ -7,6 +7,7 @@ use tracing::{error, info};
 
 pub mod config;
 pub mod listener;
+#[cfg(feature = "html")]
 pub mod page;
 #[cfg(feature = "postgres")]
 pub mod postgres;

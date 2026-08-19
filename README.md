@@ -12,9 +12,9 @@
 * `postgres::DatabaseUrl` - Validated, redacted PostgreSQL connection options (`postgres` feature)
 * `shutdown_signal()` - Graceful shutdown handler for SIGTERM/SIGINT
 * `RequestContext` - Axum extractor for reverse proxy `X-Script-Name` header
-* `page::ErrorPage` - HTML error page rendering with error chain display
-* `page::AppError` - Trait for mapping errors to HTTP status codes
-* `page::RedirectOnSuccess` - POST-Redirect-GET pattern helper
+* `page::ErrorPage` - HTML error page rendering with error chain display (`html` feature)
+* `page::AppError` - Trait for mapping errors to HTTP status codes (`html` feature)
+* `page::RedirectOnSuccess` - POST-Redirect-GET pattern helper (`html` feature)
 
 ## Configuration
 
