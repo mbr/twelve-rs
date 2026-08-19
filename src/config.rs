@@ -170,9 +170,21 @@ pub struct ParseListenAddressError {
 }
 
 /// Holds a validated tracing filter.
+///
+/// The default enables informational events while limiting Axum and tower-http
+/// internals to warnings and errors.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct LogFilter(EnvFilter);
+
+impl Default for LogFilter {
+    /// Constructs the production-oriented default filter.
+    fn default() -> Self {
+        "info,tower_http=warn,axum=warn"
+            .parse()
+            .expect("default log filter should be valid")
+    }
+}
 
 impl FromStr for LogFilter {
     type Err = ParseError;
@@ -280,6 +292,7 @@ pub struct Core {
     pub listen_address: ListenAddress,
 
     /// Selects the tracing events emitted by the application.
+    #[serde(default)]
     pub log_filter: LogFilter,
 }
 
@@ -408,6 +421,24 @@ mod tests {
             "tower_http=info,twelve=debug"
         );
         assert_eq!(config.frontend, PathBuf::from("/srv/frontend"));
+    }
+
+    /// Uses the production log filter when it is omitted.
+    #[test]
+    fn defaults_log_filter() {
+        let config: Config = deserialize(
+            concat!(
+                "listen_address = '127.0.0.1:3000'\n",
+                "frontend = '/srv/frontend'\n",
+            ),
+            Location::File(PathBuf::from("test")),
+        )
+        .expect("configuration should deserialize");
+
+        assert_eq!(
+            config.core.log_filter.to_string(),
+            "tower_http=warn,axum=warn,info"
+        );
     }
 
     /// Parses each supported listener address family.
