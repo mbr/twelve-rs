@@ -8,13 +8,14 @@
 //! use std::path::PathBuf;
 //!
 //! use axum::Router;
-//! use twelve::frontend::{RouterExt, version::FrontendVersion};
+//! use twelve::frontend::RouterExt;
 //!
+//! let root = PathBuf::from("/srv/frontend");
 //! let frontend: Router = Router::new().with_frontend_cache();
-//! let api: Router = Router::new().with_frontend_version(FrontendVersion::new(
-//!     PathBuf::from("/srv/frontend"),
-//! ));
+//! let api: Router = Router::new().with_frontend_version(&root);
 //! ```
+
+use std::path::Path;
 
 use axum::{middleware, Router};
 
@@ -26,8 +27,9 @@ pub trait RouterExt: Sized {
     /// Applies frontend cache policy to this router.
     fn with_frontend_cache(self) -> Self;
 
-    /// Advertises the current frontend version on this router's responses.
-    fn with_frontend_version(self, version: version::FrontendVersion) -> Self;
+    /// Advertises the version stored at the frontend root on this router's
+    /// responses.
+    fn with_frontend_version(self, frontend: impl AsRef<Path>) -> Self;
 }
 
 impl<S> RouterExt for Router<S>
@@ -40,7 +42,8 @@ where
     }
 
     #[inline]
-    fn with_frontend_version(self, version: version::FrontendVersion) -> Self {
+    fn with_frontend_version(self, frontend: impl AsRef<Path>) -> Self {
+        let version = version::FrontendVersion::new(frontend.as_ref().to_owned());
         self.layer(middleware::from_fn_with_state(version, version::attach))
     }
 }

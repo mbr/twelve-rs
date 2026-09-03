@@ -11,10 +11,10 @@
 //! use std::path::PathBuf;
 //!
 //! use axum::Router;
-//! use twelve::frontend::{RouterExt, version::FrontendVersion};
+//! use twelve::frontend::RouterExt;
 //!
-//! let version = FrontendVersion::new(PathBuf::from("/srv/frontend"));
-//! let api: Router = Router::new().with_frontend_version(version);
+//! let frontend = PathBuf::from("/srv/frontend");
+//! let api: Router = Router::new().with_frontend_version(frontend);
 //! ```
 
 use std::{
