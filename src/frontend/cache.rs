@@ -1,19 +1,13 @@
-//! Applies safe cache policy to a separately built frontend.
+//! Applies cache policy to a separately built frontend.
 //!
-//! The frontend must reserve `/static/` for public assets whose bytes never
-//! change at a published path. How those paths are versioned is up to the
-//! frontend build; release directories and hashes in filenames are both valid.
-//! Mutable files such as `index.html` and `frontend-version` remain outside
-//! `/static/`.
+//! The frontend must reserve `/static/` for public assets whose contents never
+//! change at a published path. Mutable files must remain outside `/static/`,
+//! and the middleware must only wrap the router serving frontend files.
 //!
-//! Successful `GET` and `HEAD` responses below `/static/`, as well as
-//! `304 Not Modified`, receive `public, max-age=31536000, immutable`. Every
-//! other response receives `no-cache`, allowing storage but requiring
-//! revalidation. Classification ignores query strings, and the middleware
-//! replaces any existing `Cache-Control` header.
+//! Successful static asset responses are cached as immutable. Other frontend
+//! responses require revalidation.
 //!
-//! Apply the middleware only to the router serving frontend files so API
-//! responses retain their own cache policy:
+//! Apply the middleware to the frontend router:
 //!
 //! ```
 //! use axum::{Router, middleware};
