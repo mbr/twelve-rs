@@ -10,10 +10,10 @@
 //! Apply the middleware to the frontend router:
 //!
 //! ```
-//! use axum::{Router, middleware};
-//! use twelve::frontend::cache;
+//! use axum::Router;
+//! use twelve::frontend::RouterExt;
 //!
-//! let frontend: Router = Router::new().layer(middleware::from_fn(cache::set));
+//! let frontend: Router = Router::new().with_frontend_cache();
 //! ```
 
 use axum::{

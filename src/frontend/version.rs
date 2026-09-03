@@ -13,11 +13,11 @@
 //! ```no_run
 //! use std::path::PathBuf;
 //!
-//! use axum::{Router, middleware};
-//! use twelve::frontend::version::{FrontendVersion, attach};
+//! use axum::Router;
+//! use twelve::frontend::{RouterExt, version::FrontendVersion};
 //!
 //! let version = FrontendVersion::new(PathBuf::from("/srv/frontend"));
-//! let api: Router = Router::new().layer(middleware::from_fn_with_state(version, attach));
+//! let api: Router = Router::new().with_frontend_version(version);
 //! ```
 
 use std::{
