@@ -1,18 +1,27 @@
-//! Supports separately built browser frontends.
+//! Supports REST APIs shipped with a separately built single-page application.
 //!
-//! [`cache`] applies cache policy to immutable static assets, while
-//! [`version`] advertises the deployed frontend version on selected responses.
-//! [`RouterExt`] applies either middleware directly to an Axum router:
+//! [`cache`] lets immutable frontend assets be cached safely. [`version`] adds
+//! the deployed frontend version to API responses so the running application
+//! can detect a newer deployment. The two middleware can be used independently.
+//!
+//! A typical setup reuses the frontend root for file serving and locating the
+//! version manifest.
 //!
 //! ```no_run
 //! use std::path::PathBuf;
 //!
-//! use axum::Router;
+//! use axum::{Router, routing::get};
+//! use tower_http::services::ServeDir;
 //! use twelve::frontend::RouterExt;
 //!
 //! let root = PathBuf::from("/srv/frontend");
-//! let frontend: Router = Router::new().with_frontend_cache();
-//! let api: Router = Router::new().with_frontend_version(&root);
+//! let api = Router::new()
+//!     .route("/status", get(|| async { "ok" }))
+//!     .with_frontend_version(&root);
+//! let frontend = Router::new()
+//!     .fallback_service(ServeDir::new(&root).append_index_html_on_directories(true))
+//!     .with_frontend_cache();
+//! let application: Router = Router::new().nest("/api", api).merge(frontend);
 //! ```
 
 use std::path::Path;
