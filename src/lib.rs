@@ -12,4 +12,7 @@ pub mod page;
 #[cfg(feature = "postgres")]
 #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
 pub mod postgres;
+mod server;
 pub mod shutdown;
+
+pub use server::{serve, ServeError};
