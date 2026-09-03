@@ -2,9 +2,10 @@
 //!
 //! The frontend build must write its version as a valid HTTP header value to
 //! `frontend-version` at the frontend root and embed the same value in the
-//! browser application. The middleware reads the file for every request so
-//! development rebuilds are visible without restarting the server. Read and
-//! validation failures are logged, and the response header is omitted.
+//! browser application. The middleware reads the file for every request and
+//! sets the `frontend-version` response header, so development rebuilds are
+//! visible without restarting the server. Read and validation failures are
+//! logged, and the response header is omitted.
 //!
 //! Apply the middleware to the API router whose responses should report the
 //! current frontend version:
