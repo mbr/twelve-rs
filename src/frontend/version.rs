@@ -1,14 +1,11 @@
-//! Advertises the deployed frontend version on HTTP responses.
+//! Adds a frontend version file to HTTP responses.
 //!
-//! The frontend build must write its version as a valid HTTP header value to
-//! `frontend-version` at the frontend root and embed the same value in the
-//! browser application. The middleware reads the file for every request and
-//! sets the `frontend-version` response header, so development rebuilds are
-//! visible without restarting the server. Read and validation failures are
-//! logged, and the response header is omitted.
+//! The middleware reads `frontend-version` from the frontend root for each
+//! request and sets its contents as the `frontend-version` response header.
+//! The file must contain a valid header value. Failures are logged and do not
+//! set the header.
 //!
-//! Apply the middleware to the API router whose responses should report the
-//! current frontend version:
+//! Apply the middleware to the router that should report the version:
 //!
 //! ```no_run
 //! use std::path::PathBuf;
