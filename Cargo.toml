@@ -1,6 +1,6 @@
 [package]
 name = "twelve"
-version = "0.4.0"
+version = "0.4.1"
 description = "Twelve-factor app utilities for axum"
 repository = "https://github.com/mbr/twelve-rs"
 documentation = "https://docs.rs/twelve"
