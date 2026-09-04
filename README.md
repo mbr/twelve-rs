@@ -1,9 +1,21 @@
-# Twelve factor webapp crate
+# Twelve-factor web applications
 
 `twelve` provides reusable utilities for twelve-factor web applications built
 with [`axum`](https://docs.rs/axum/latest/axum/).
 
-> **Warning:** Parts of this crate are still exploratory. Expect substantial API breakage between major versions.
+> **Warning:** This crate is still exploratory. Minor releases before 1.0 may
+> contain breaking API changes.
+
+## Features
+
+The `postgres` feature provides validated database configuration and SQLx pool
+initialization. The `html` feature provides responses for traditional HTML
+applications. Neither feature is enabled by default.
+
+```toml
+[dependencies]
+twelve = { version = "0.4", features = ["postgres"] }
+```
 
 ## Example
 
@@ -14,10 +26,10 @@ shutdown:
 ```ignore
 use std::path::PathBuf;
 
-use axum::{Router, extract::State, routing::get};
-use serde::Deserialize;
+use axum::{Json, Router, extract::State, routing::get};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use tower_http::services::ServeDir;
+use tower_http::{services::ServeDir, trace::TraceLayer};
 use twelve::{
     config::{Core, DatabaseUrl},
     frontend::RouterExt,
@@ -29,6 +41,11 @@ struct Config {
     core: Core,
     database_url: DatabaseUrl,
     frontend: PathBuf,
+}
+
+#[derive(Serialize)]
+struct Pong {
+    message: &'static str,
 }
 
 #[tokio::main]
@@ -43,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     let api = Router::new()
-        .route("/status", get(status))
+        .route("/ping", get(ping))
         .with_frontend_version(&config.frontend);
     let frontend = Router::new()
         .fallback_service(
@@ -53,13 +70,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let application = Router::new()
         .nest("/api", api)
         .merge(frontend)
+        .layer(TraceLayer::new_for_http())
         .with_state(database);
 
     twelve::serve(&config.core.listen_address, application).await?;
     Ok(())
 }
 
-async fn status(State(_database): State<PgPool>) -> &'static str {
-    "ok"
+async fn ping(State(_database): State<PgPool>) -> Json<Pong> {
+    Json(Pong { message: "pong" })
 }
 ```

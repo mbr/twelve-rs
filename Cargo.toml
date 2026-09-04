@@ -11,11 +11,11 @@ license = "MIT OR Apache-2.0"
 edition = "2021"
 rust-version = "1.80"
 include = [
-  "src/**/*",
-  "Cargo.toml",
-  "README.md",
-  "LICENSE-APACHE",
-  "LICENSE-MIT",
+  "/src/**/*",
+  "/Cargo.toml",
+  "/README.md",
+  "/LICENSE-APACHE",
+  "/LICENSE-MIT",
 ]
 
 [package.metadata.docs.rs]

@@ -10,4 +10,4 @@ echo "rustc $(rustc --version) at $(which rustc), cargo $(cargo --version) at $(
 RUSTFLAGS="-D warnings" cargo check
 RUSTFLAGS="-D warnings" cargo check --all-features
 RUSTFLAGS="-D warnings" cargo check --no-default-features
-cargo clippy --all-features -- -D warnings
+cargo clippy --all-features --all-targets -- -D warnings
