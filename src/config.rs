@@ -44,7 +44,7 @@ use thiserror::Error;
 use tracing_subscriber::{filter::ParseError, EnvFilter};
 
 /// Identifies the source of a configuration document.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Location {
     /// Reads configuration from standard input.
     StandardInput,
@@ -115,7 +115,7 @@ impl Display for Location {
 /// assert!(matches!(unix, ListenAddress::Unix(_)));
 /// # Ok::<(), twelve::config::ParseListenAddressError>(())
 /// ```
-#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(try_from = "String")]
 pub enum ListenAddress {
     /// Listens on a TCP socket.
@@ -286,7 +286,7 @@ pub enum ParseDatabaseUrlError {
 /// Provides configuration shared by web applications.
 ///
 /// This can be flattened into application-specific Serde configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Core {
     /// Selects the address on which the HTTP server listens.
     pub listen_address: ListenAddress,
