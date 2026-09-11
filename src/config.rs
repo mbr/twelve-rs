@@ -24,6 +24,8 @@
 //! # }
 //! ```
 
+pub mod external;
+
 use std::{
     env,
     ffi::OsString,

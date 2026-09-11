@@ -1209,6 +1209,9 @@ name = "sec"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6c768f5f9516b48f13a98020a9a8a97d0f433a451e25d6f70fc2da194cdd6ee"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "serde"
