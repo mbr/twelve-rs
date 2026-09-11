@@ -29,7 +29,7 @@ postgres = ["dep:sec", "dep:sqlx"]
 [dependencies]
 axum = "0.8"
 html-escape = { version = "0.2", optional = true }
-sec = { version = "1", optional = true }
+sec = { version = "1.1", optional = true }
 serde = { version = "1", features = ["derive"] }
 sqlx = { version = "0.8", default-features = false, features = ["migrate", "postgres", "runtime-tokio", "tls-rustls"], optional = true }
 thiserror = "2"
