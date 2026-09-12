@@ -9,7 +9,7 @@ keywords = ["axum", "twelve-factor", "web"]
 categories = ["web-programming::http-server"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.94"
 include = [
   "/src/**/*",
   "/Cargo.toml",
@@ -31,10 +31,10 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 html-escape = { version = "0.2", optional = true }
 sec = { version = "1.1", optional = true }
 serde = { version = "1", features = ["derive"] }
-sqlx = { version = "0.8", default-features = false, features = ["migrate", "postgres", "runtime-tokio", "tls-rustls"], optional = true }
+sqlx = { version = "0.9", default-features = false, features = ["migrate", "postgres", "runtime-tokio", "tls-rustls"], optional = true }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "signal"] }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+toml = { version = "1.1", default-features = false, features = ["parse", "serde", "std"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "env-filter", "tracing-log"] }
 
@@ -42,4 +42,4 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["a
 sec = { version = "1.1", features = ["deserialize"] }
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["fs"] }
+tower-http = { version = "0.7", features = ["fs"] }

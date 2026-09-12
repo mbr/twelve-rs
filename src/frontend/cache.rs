@@ -66,7 +66,7 @@ mod tests {
     use axum::{
         body::Body,
         http::{
-            header::{CACHE_CONTROL, IF_MODIFIED_SINCE, LAST_MODIFIED},
+            header::{CACHE_CONTROL, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED},
             Method, Request, StatusCode,
         },
         middleware, Router,
@@ -101,18 +101,36 @@ mod tests {
             .layer(middleware::from_fn(set));
 
         let response = application
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header(IF_MODIFIED_SINCE, "Thu, 01 Jan 2100 00:00:00 GMT")
-                    .body(Body::empty())
-                    .expect("request"),
-            )
+            .clone()
+            .oneshot(Request::new(Body::empty()))
             .await
-            .expect("response");
+            .expect("initial response");
+        let etag = response.headers()[ETAG].clone();
 
-        assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()[CACHE_CONTROL], "no-store");
-        assert!(response.headers().get(LAST_MODIFIED).is_none());
+        for (header, value) in [
+            (
+                IF_MODIFIED_SINCE,
+                "Thu, 01 Jan 2100 00:00:00 GMT"
+                    .parse()
+                    .expect("valid HTTP date header"),
+            ),
+            (IF_NONE_MATCH, etag),
+        ] {
+            let response = application
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/")
+                        .header(header, value)
+                        .body(Body::empty())
+                        .expect("conditional request"),
+                )
+                .await
+                .expect("response");
+
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[CACHE_CONTROL], "no-store");
+            assert!(response.headers().get(LAST_MODIFIED).is_none());
+        }
     }
 }
