@@ -31,17 +31,19 @@
 //! use axum::{Extension, Router};
 //!
 //! # fn configure(app: Router, config: twelve::config::Core) -> Router {
-//! let app = app.layer(Extension(config.public_url));
+//! let urls = config.urls().expect("public_url must be configured");
+//! let app = app.layer(Extension(urls));
 //! # app
 //! # }
 //! ```
 //!
-//! When `config.public_url` is `Some(url)`, the extractor uses that fixed URL
-//! and ignores all origin and prefix headers. If it is `None`, this opts into
-//! the request-derived behavior below.
+//! The extractor uses a registered `Urls` first. Alternatively, register
+//! `Extension(config.public_url)`: `Some(url)` supplies a fixed address and
+//! `None` opts into the request-derived behavior below.
 //!
-//! **Warning:** Without an `Extension<Option<PublicUrl>>`, extraction returns
-//! HTTP 500. Loading configuration alone does not register it.
+//! **Warning:** Without either `Extension<Urls>` or
+//! `Extension<Option<PublicUrl>>`, extraction returns HTTP 500. Loading
+//! configuration alone does not register it.
 //!
 //! # Request-derived URLs
 //!
@@ -94,7 +96,7 @@ pub enum ExternalUrlError {
 }
 
 /// Constructs URLs from a fixed public address or request headers.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Urls {
     /// The absolute path on the domain that the app is running under.
     script_name: Option<String>,
@@ -195,6 +197,9 @@ impl<S: Send + Sync> FromRequestParts<S> for Urls {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        if let Some(urls) = parts.extensions.get::<Self>() {
+            return Ok(urls.clone());
+        }
         if let Some(url) = parts
             .extensions
             .get::<Option<PublicUrl>>()
@@ -309,6 +314,25 @@ mod tests {
         );
         assert_eq!(urls.internal("account"), "/app/account");
         assert_eq!(urls.public_host(), Some("example.com:8443"));
+    }
+
+    #[tokio::test]
+    async fn registered_urls_take_precedence() {
+        let url: PublicUrl = "https://example.com/app/".parse().expect("valid URL");
+        let (mut parts, ()) = Request::builder()
+            .header("X-Forwarded-Proto", "invalid")
+            .body(())
+            .expect("valid request")
+            .into_parts();
+        parts.extensions.insert(Urls::from(&url));
+        parts.extensions.insert(None::<PublicUrl>);
+        let urls = Urls::from_request_parts(&mut parts, &())
+            .await
+            .expect("registered URLs");
+        assert_eq!(
+            urls.external("account").expect("valid URL"),
+            "https://example.com/app/account"
+        );
     }
 
     #[tokio::test]
