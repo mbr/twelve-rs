@@ -5,6 +5,8 @@
 //! `account` into `/app/account` with [`Urls::internal`], or
 //! `https://example.com/app/account` with [`Urls::external`].
 //!
+//! # Fixed public URL
+//!
 //! Prefer supplying the address in configuration:
 //!
 //! ```toml
@@ -34,10 +36,24 @@
 //! # }
 //! ```
 //!
-//! A registered `Some(PublicUrl)` uses the fixed address and ignores headers.
-//! A registered `None::<PublicUrl>` opts into detecting the address from the
-//! request. **Warning:** Without an `Extension<Option<PublicUrl>>`, extraction
-//! returns HTTP 500. Loading configuration alone does not register it.
+//! When `config.public_url` is `Some(url)`, the extractor uses that fixed URL
+//! and ignores all origin and prefix headers. If it is `None`, this opts into
+//! the request-derived behavior below.
+//!
+//! **Warning:** Without an `Extension<Option<PublicUrl>>`, extraction returns
+//! HTTP 500. Loading configuration alone does not register it.
+//!
+//! # Request-derived URLs
+//!
+//! Registering `None::<PublicUrl>` instead of a fixed URL enables automatic
+//! detection from request headers:
+//!
+//! ```
+//! # use axum::{Extension, Router};
+//! # use twelve::config::PublicUrl;
+//! # let app: Router = Router::new();
+//! let app = app.layer(Extension(None::<PublicUrl>));
+//! ```
 //!
 //! Detection uses `X-Forwarded-Host` (fallback: `Host`), `X-Forwarded-Proto`
 //! (default: HTTP), and `X-Script-Name` (default: no path prefix).
