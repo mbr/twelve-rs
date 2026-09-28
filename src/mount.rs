@@ -1,27 +1,16 @@
-//! Builds links and redirects for applications below a reverse-proxy path prefix.
+//! Builds links and redirects using an optional `X-Script-Name` prefix.
 //!
-//! [`Mount`] reads `X-Script-Name` and prepends it to generated links and
-//! redirects. [`Mount::external`] also reads `X-Forwarded-Proto` and
-//! `X-Forwarded-Host` to construct absolute URLs. It does not rewrite routing.
+//! Absolute URLs use `X-Forwarded-Proto` (default: HTTP) and `X-Forwarded-Host`
+//! (fallback: `Host`). Request routing is unchanged.
 //!
-//! **Warning:** These headers are trusted unconditionally. Only use this
-//! extractor behind a trusted reverse proxy that overwrites or removes all
-//! three headers, and prevent clients from reaching the backend directly.
-//! Remove `X-Script-Name` when no mount prefix is configured. Validating header
-//! syntax does not prevent an attacker from supplying a different public URL.
-//!
-//! Without `X-Forwarded-Host`, the host comes from `Host`. Without
-//! `X-Forwarded-Proto`, the scheme defaults to HTTP. `Host` is also supplied
-//! by the client; these fallbacks do not establish a trusted canonical origin.
-//!
-//! ```
-//! use axum::response::Redirect;
-//! use twelve::mount::Mount;
-//!
-//! async fn account(mount: Mount) -> Redirect {
-//!     mount.redirect_to("/account")
-//! }
-//! ```
+//! **Warning:** Headers are trusted unconditionally. For example, an attacker
+//! could request a password reset for another user while setting
+//! `X-Forwarded-Host` (or `Host`) to the attacker's domain. If the application
+//! uses [`Mount::external`] for the reset link, the victim receives an email
+//! containing that domain and their reset token. Clicking the link sends the
+//! token to the attacker, who can use it to reset the victim's password.
+//! Have a trusted proxy fix or validate the public origin, set or remove
+//! `X-Script-Name`, and block direct access to the backend.
 
 use axum::{
     extract::FromRequestParts,
@@ -34,7 +23,7 @@ use axum::{
 };
 use thiserror::Error;
 
-/// Describes why an absolute public URL could not be constructed.
+/// Reports public URL construction failures.
 #[derive(Debug, Error)]
 pub enum ExternalUrlError {
     /// Indicates that no public origin is available.
@@ -45,7 +34,7 @@ pub enum ExternalUrlError {
     InvalidUri(#[source] axum::http::Error),
 }
 
-/// Provides request-aware links for applications below a proxy path prefix.
+/// Constructs links from request headers.
 #[derive(Debug)]
 pub struct Mount {
     /// The absolute path on the domain that the app is running under.
@@ -57,14 +46,11 @@ pub struct Mount {
 }
 
 impl Mount {
-    /// Constructs a relative URL (no scheme or host).
-    ///
-    /// Exactly one slash separates the external mount prefix from the supplied
-    /// path. Slashes elsewhere in either value are preserved.
+    /// Constructs a relative URL, joining the mount prefix with one slash.
     ///
     /// # Panics
     ///
-    /// Will panic if generated Uris are invalid.
+    /// Panics if the resulting URI is invalid.
     // TODO: Log warning, generate different Uri, or ensure this can never fail?
     pub fn internal<S: AsRef<str>>(&self, path: S) -> String {
         let mut parts: uri::Parts = Default::default();
@@ -89,11 +75,10 @@ impl Mount {
             .to_string()
     }
 
-    /// Constructs an absolute URL using the public origin and mount prefix.
+    /// Constructs an absolute URL relative to the mount, not the request path.
     ///
-    /// Both `foo` and `/foo` are relative to the mount prefix, not the current
-    /// request path. Returns an error if the host is absent or the resulting
-    /// URI is invalid. The path must be URI-encoded.
+    /// Accepts URI-encoded paths with or without a leading slash. Fails if the
+    /// host is missing or the resulting URI is invalid.
     pub fn external<S: AsRef<str>>(&self, path: S) -> Result<String, ExternalUrlError> {
         let (scheme, authority) = self
             .scheme
