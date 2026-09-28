@@ -1,10 +1,29 @@
-//! Builds links and redirects using an optional `X-Script-Name` prefix.
+//! Builds links and redirects from a fixed public URL or request headers.
 //!
-//! Absolute URLs use `X-Forwarded-Proto` (default: HTTP) and `X-Forwarded-Host`
-//! (fallback: `Host`). Request routing is unchanged.
+//! **Warning:** Setting [`Core::public_url`](crate::config::Core::public_url)
+//! alone has no effect on [`Mount`]. Register [`PublicUrl`] as an
+//! [`axum::Extension`] to override all origin and mount-prefix headers:
 //!
-//! **Warning:** Headers are trusted unconditionally. For example, an attacker
-//! could request a password reset for another user while setting
+//! ```
+//! use axum::{Extension, Router};
+//! use twelve::config::Core;
+//!
+//! # fn configure(app: Router, config: Core) -> Router {
+//! let app = if let Some(url) = config.public_url {
+//!     app.layer(Extension(url))
+//! } else {
+//!     app
+//! };
+//! # app
+//! # }
+//! ```
+//!
+//! Without this extension, URLs use `X-Forwarded-Proto` (default: HTTP),
+//! `X-Forwarded-Host` (fallback: `Host`), and an optional `X-Script-Name` prefix.
+//! Request routing is unchanged.
+//!
+//! **Warning:** In header-based mode, headers are trusted. For example, an
+//! attacker could request a password reset for another user while setting
 //! `X-Forwarded-Host` (or `Host`) to the attacker's domain. If the application
 //! uses [`Mount::external`] for the reset link, the victim receives an email
 //! containing that domain and their reset token. Clicking the link sends the
@@ -27,6 +46,8 @@ use axum::{
 };
 use thiserror::Error;
 
+use crate::config::PublicUrl;
+
 /// Reports public URL construction failures.
 #[derive(Debug, Error)]
 pub enum ExternalUrlError {
@@ -38,14 +59,14 @@ pub enum ExternalUrlError {
     InvalidUri(#[source] axum::http::Error),
 }
 
-/// Constructs links from request headers.
+/// Constructs links from a fixed public URL or request headers.
 #[derive(Debug)]
 pub struct Mount {
     /// The absolute path on the domain that the app is running under.
     script_name: Option<String>,
-    /// The forwarded HTTP scheme, defaulting to HTTP.
+    /// The configured or request-derived HTTP scheme.
     scheme: Option<Scheme>,
-    /// The forwarded or request host and optional port.
+    /// The public authority, including any credentials and port.
     authority: Option<Authority>,
 }
 
@@ -108,7 +129,9 @@ impl Mount {
 
     /// Returns the public host, including an explicit port if present.
     pub fn public_host(&self) -> Option<&str> {
-        self.authority.as_ref().map(Authority::as_str)
+        self.authority
+            .as_ref()
+            .and_then(|authority| authority.as_str().rsplit('@').next())
     }
 
     /// Redirects to a path relative to the mount prefix.
@@ -122,10 +145,26 @@ impl Mount {
     }
 }
 
+impl From<&PublicUrl> for Mount {
+    /// Constructs a fixed mount, including the URL's credentials and path.
+    fn from(url: &PublicUrl) -> Self {
+        let uri = url.as_uri();
+        Self {
+            script_name: Some(uri.path().to_owned()),
+            scheme: uri.scheme().cloned(),
+            authority: uri.authority().cloned(),
+        }
+    }
+}
+
 impl<S: Send + Sync> FromRequestParts<S> for Mount {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        if let Some(url) = parts.extensions.get::<PublicUrl>() {
+            return Ok(Self::from(url));
+        }
+
         let script_name = if let Some(script_name_header) = parts.headers.get("X-Script-Name") {
             Some(
                 script_name_header
@@ -180,6 +219,7 @@ mod tests {
     };
 
     use super::{ExternalUrlError, Mount};
+    use crate::config::PublicUrl;
 
     #[test]
     fn internal_url_construction_without_reverse_proxy() {
@@ -206,6 +246,31 @@ mod tests {
 
         assert_eq!(mount.internal("foo/bar"), "/sub/dir/foo/bar");
         assert_eq!(mount.internal("///foo/bar"), "/sub/dir/foo/bar");
+    }
+
+    #[tokio::test]
+    async fn configured_url_overrides_request_headers() {
+        let url: PublicUrl = "https://user:p%40ss@example.com:8443/app/"
+            .parse()
+            .expect("valid public URL");
+        let (mut parts, ()) = Request::builder()
+            .header("X-Forwarded-Proto", "invalid")
+            .header("X-Forwarded-Host", "attacker.example")
+            .header("Host", "attacker.example")
+            .header("X-Script-Name", "/attacker")
+            .body(())
+            .expect("valid request")
+            .into_parts();
+        parts.extensions.insert(url);
+        let mount = Mount::from_request_parts(&mut parts, &())
+            .await
+            .expect("fixed mount");
+        assert_eq!(
+            mount.external("account").expect("valid URL"),
+            "https://user:p%40ss@example.com:8443/app/account"
+        );
+        assert_eq!(mount.internal("account"), "/app/account");
+        assert_eq!(mount.public_host(), Some("example.com:8443"));
     }
 
     #[tokio::test]
