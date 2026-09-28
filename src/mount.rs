@@ -1,44 +1,58 @@
-//! Builds relative links, absolute URLs, and redirects with a mount prefix.
-//! Request routing is unchanged.
+//! Builds links and redirects to an application's public address.
 //!
-//! Prefer a fixed public URL; request-header auto-detection is also available.
-//! Set `public_url = "https://example.com/app/"` in configuration, then use
-//! [`Core::mount`](crate::config::Core::mount), without a request or extension:
+//! An application may listen on a private socket but be publicly available at
+//! `https://example.com/app/`. [`Mount`] uses that public address to turn
+//! `account` into `/app/account` with [`Mount::internal`], or
+//! `https://example.com/app/account` with [`Mount::external`]. It builds links;
+//! it does not change request routing.
+//!
+//! Prefer supplying the address in configuration:
+//!
+//! ```toml
+//! public_url = "https://example.com/app/"
+//! ```
+//!
+//! [`Core::mount`](crate::config::Core::mount) constructs a mount from this
+//! value. It works without an HTTP request, including in background jobs:
 //!
 //! ```
 //! # fn example(config: twelve::config::Core) {
 //! let mount = config.mount().expect("public_url must be configured");
 //! let link = mount.external("account").expect("valid path");
-//! // https://example.com/app/account
 //! # }
 //! ```
 //!
-//! For auto-detection, accept `mount: Mount` in a handler and explicitly opt in:
+//! Handlers can instead take `mount: Mount` as an Axum extractor. To supply its
+//! configuration, add an [`axum::Extension`] layer to the router. This makes
+//! the value available on each request:
 //!
 //! ```
 //! use axum::{Extension, Router};
-//! use twelve::config::PublicUrl;
 //!
-//! # let app: Router = Router::new();
-//! let app = app.layer(Extension(None::<PublicUrl>));
+//! # fn configure(app: Router, config: twelve::config::Core) -> Router {
+//! let app = app.layer(Extension(config.public_url));
+//! # app
+//! # }
 //! ```
 //!
-//! Registering `Some(url)` instead makes the extractor use that fixed URL.
-//! **Warning:** Extraction requires `Extension<Option<PublicUrl>>`; missing
-//! registration returns HTTP 500. Setting `Core::public_url` alone is not enough.
+//! A registered `Some(PublicUrl)` uses the fixed address and ignores headers.
+//! A registered `None::<PublicUrl>` opts into detecting the address from the
+//! request. **Warning:** Without an `Extension<Option<PublicUrl>>`, extraction
+//! returns HTTP 500. Loading configuration alone does not register it.
 //!
-//! Auto-detection uses `X-Forwarded-Proto` (default: HTTP), `X-Forwarded-Host`
-//! (fallback: `Host`), and `X-Script-Name` (default: no prefix).
+//! Detection uses `X-Forwarded-Host` (fallback: `Host`), `X-Forwarded-Proto`
+//! (default: HTTP), and `X-Script-Name` (default: no path prefix).
 //!
-//! **Warning:** These headers are trusted. For example, an attacker can request
-//! a password reset for another user with their own domain in `X-Forwarded-Host`
-//! or `Host`. A reset email built with [`Mount::external`] then links to that
-//! domain. When the victim clicks, the attacker receives the reset token and
-//! can use it to change the victim's password.
+//! **Warning:** Request-derived addresses can be attacker-controlled. For
+//! example, an attacker requests a password reset for another user, supplying
+//! their own domain in `X-Forwarded-Host` or `Host`. If the reset email uses
+//! [`Mount::external`], its link points to the attacker. Clicking it sends them
+//! the token, which they can use to reset the victim's password.
 //!
-//! For header-based URLs, the proxy must fix or validate the public origin and
-//! set or remove `X-Script-Name`. Block direct backend access so clients cannot
-//! bypass the proxy. Using a configured fixed URL avoids this dependency.
+//! To use detection safely, have the reverse proxy fix or validate the public
+//! host and scheme, and set or remove `X-Script-Name`. Prevent direct access to
+//! the backend so clients cannot bypass the proxy. A configured public URL
+//! avoids relying on request headers.
 
 use axum::{
     extract::FromRequestParts,

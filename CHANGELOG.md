@@ -3,10 +3,7 @@
 ## Unreleased
 
 - Add optional `Core::public_url` configuration and a validated `PublicUrl` type.
-  `Mount` can construct links from a fixed URL instead of request headers.
-- Add `Mount::external` and `Mount::public_host` using `X-Forwarded-Proto` and
-  `X-Forwarded-Host`, falling back to HTTP and `Host`. Absolute links include
-  the existing `X-Script-Name` prefix.
+- Add `Mount::external` and `Mount::public_host`.
 
 ## 0.5.0
 
