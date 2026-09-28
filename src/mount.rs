@@ -9,8 +9,12 @@
 //! uses [`Mount::external`] for the reset link, the victim receives an email
 //! containing that domain and their reset token. Clicking the link sends the
 //! token to the attacker, who can use it to reset the victim's password.
-//! Have a trusted proxy fix or validate the public origin, set or remove
-//! `X-Script-Name`, and block direct access to the backend.
+//!
+//! To prevent this, configure the reverse proxy to overwrite the forwarded
+//! host and scheme with a fixed public origin, or validate them against allowed
+//! origins. It must also set `X-Script-Name` to the configured mount prefix, or
+//! remove it when no prefix is used. Keep the backend inaccessible to clients
+//! so requests cannot bypass these checks.
 
 use axum::{
     extract::FromRequestParts,
