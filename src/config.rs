@@ -37,6 +37,7 @@ use std::{
     str::FromStr,
 };
 
+use axum::http::{uri::InvalidUri, Uri};
 #[cfg(feature = "postgres")]
 use sec::Secret;
 use serde::{de::DeserializeOwned, Deserialize};
@@ -220,6 +221,75 @@ impl Display for LogFilter {
     }
 }
 
+/// Defines a fixed HTTP(S) base URL, including credentials and a mount path.
+///
+/// Queries and fragments are not supported. URI components must be encoded.
+#[derive(Clone, Deserialize, Eq, PartialEq)]
+#[serde(try_from = "String")]
+pub struct PublicUrl(Uri);
+
+impl PublicUrl {
+    /// Returns the validated URI.
+    pub fn as_uri(&self) -> &Uri {
+        &self.0
+    }
+}
+
+impl fmt::Debug for PublicUrl {
+    /// Omits the URL to avoid exposing embedded credentials.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("PublicUrl(...)")
+    }
+}
+
+impl Display for PublicUrl {
+    /// Formats the URL, including any embedded credentials.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+impl FromStr for PublicUrl {
+    type Err = ParsePublicUrlError;
+
+    /// Parses an absolute HTTP(S) base URL without a query or fragment.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.contains(['?', '#']) {
+            return Err(ParsePublicUrlError::QueryOrFragment);
+        }
+        let uri: Uri = value.parse().map_err(ParsePublicUrlError::Invalid)?;
+        if !matches!(uri.scheme_str(), Some("http" | "https"))
+            || uri.host().is_none_or(str::is_empty)
+        {
+            return Err(ParsePublicUrlError::Origin);
+        }
+        Ok(Self(uri))
+    }
+}
+
+impl TryFrom<String> for PublicUrl {
+    type Error = ParsePublicUrlError;
+
+    /// Parses an owned public base URL.
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+/// Reports invalid public base URLs.
+#[derive(Debug, Error)]
+pub enum ParsePublicUrlError {
+    /// Indicates malformed URI syntax.
+    #[error("invalid public URL")]
+    Invalid(#[source] InvalidUri),
+    /// Indicates a missing HTTP(S) scheme or host.
+    #[error("public URL requires an HTTP(S) scheme and host")]
+    Origin,
+    /// Indicates components that cannot be used as a base URL.
+    #[error("public URL must not contain a query or fragment")]
+    QueryOrFragment,
+}
+
 /// Holds validated PostgreSQL connection options without exposing credentials.
 #[cfg(feature = "postgres")]
 #[cfg_attr(docsrs, doc(cfg(feature = "postgres")))]
@@ -292,6 +362,10 @@ pub enum ParseDatabaseUrlError {
 pub struct Core {
     /// Selects the address on which the HTTP server listens.
     pub listen_address: ListenAddress,
+
+    /// Selects a fixed public base URL.
+    #[serde(default)]
+    pub public_url: Option<PublicUrl>,
 
     /// Selects the tracing events emitted by the application.
     #[serde(default)]
@@ -387,7 +461,7 @@ mod tests {
 
     #[cfg(feature = "postgres")]
     use super::DatabaseUrl;
-    use super::{deserialize, Core, ListenAddress, Location};
+    use super::{deserialize, Core, ListenAddress, Location, PublicUrl};
 
     /// Provides application-specific fields around shared configuration.
     #[derive(Debug, Deserialize)]
@@ -408,6 +482,7 @@ mod tests {
             concat!(
                 "listen_address = '127.0.0.1:3000'\n",
                 "log_filter = 'twelve=debug,tower_http=info'\n",
+                "public_url = 'https://user:p%40ss@example.com:8443/app/'\n",
                 "frontend = '/srv/frontend'\n",
             ),
             Location::File(PathBuf::from("test")),
@@ -423,6 +498,9 @@ mod tests {
             "tower_http=info,twelve=debug"
         );
         assert_eq!(config.frontend, PathBuf::from("/srv/frontend"));
+        let url = config.core.public_url.expect("configured public URL");
+        assert_eq!(url.to_string(), "https://user:p%40ss@example.com:8443/app/");
+        assert_eq!(format!("{url:?}"), "PublicUrl(...)");
     }
 
     /// Uses the production log filter when it is omitted.
@@ -441,6 +519,20 @@ mod tests {
             config.core.log_filter.to_string(),
             "tower_http=warn,axum=warn,info"
         );
+        assert!(config.core.public_url.is_none());
+    }
+
+    /// Rejects unsupported public base URL components.
+    #[test]
+    fn rejects_invalid_public_urls() {
+        for value in [
+            "/app",
+            "ftp://example.com",
+            "https://example.com/?q=1",
+            "https://example.com/#section",
+        ] {
+            assert!(value.parse::<PublicUrl>().is_err(), "{value}");
+        }
     }
 
     /// Parses each supported listener address family.
