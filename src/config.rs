@@ -372,6 +372,13 @@ pub struct Core {
     pub log_filter: LogFilter,
 }
 
+impl Core {
+    /// Constructs a fixed mount from the configured public URL, if present.
+    pub fn mount(&self) -> Option<crate::mount::Mount> {
+        self.public_url.as_ref().map(crate::mount::Mount::from)
+    }
+}
+
 /// Describes a failure to resolve or load application configuration.
 #[derive(Debug, Error)]
 pub enum Error {
@@ -498,6 +505,15 @@ mod tests {
             "tower_http=info,twelve=debug"
         );
         assert_eq!(config.frontend, PathBuf::from("/srv/frontend"));
+        assert_eq!(
+            config
+                .core
+                .mount()
+                .expect("configured mount")
+                .external("account")
+                .expect("valid URL"),
+            "https://user:p%40ss@example.com:8443/app/account"
+        );
         let url = config.core.public_url.expect("configured public URL");
         assert_eq!(url.to_string(), "https://user:p%40ss@example.com:8443/app/");
         assert_eq!(format!("{url:?}"), "PublicUrl(...)");
@@ -520,6 +536,7 @@ mod tests {
             "tower_http=warn,axum=warn,info"
         );
         assert!(config.core.public_url.is_none());
+        assert!(config.core.mount().is_none());
     }
 
     /// Rejects unsupported public base URL components.
