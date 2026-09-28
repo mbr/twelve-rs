@@ -1,36 +1,44 @@
-//! Builds links and redirects from a fixed public URL or request headers.
+//! Builds relative links, absolute URLs, and redirects with a mount prefix.
+//! Request routing is unchanged.
 //!
-//! **Warning:** Register `Option<PublicUrl>` as an [`axum::Extension`].
-//! `Some(url)` overrides all origin and mount-prefix headers; `None` explicitly
-//! enables header-based URLs. Missing registration rejects extraction with
-//! HTTP 500, even if [`Core::public_url`](crate::config::Core::public_url) is set:
+//! Prefer a fixed public URL; request-header auto-detection is also available.
+//! Set `public_url = "https://example.com/app/"` in configuration, then use
+//! [`Core::mount`](crate::config::Core::mount), without a request or extension:
 //!
 //! ```
-//! use axum::{Extension, Router};
-//! use twelve::config::Core;
-//!
-//! # fn configure(app: Router, config: Core) -> Router {
-//! let app = app.layer(Extension(config.public_url));
-//! # app
+//! # fn example(config: twelve::config::Core) {
+//! let mount = config.mount().expect("public_url must be configured");
+//! let link = mount.external("account").expect("valid path");
+//! // https://example.com/app/account
 //! # }
 //! ```
 //!
-//! With a registered `None`, URLs use `X-Forwarded-Proto` (default: HTTP),
-//! `X-Forwarded-Host` (fallback: `Host`), and an optional `X-Script-Name` prefix.
-//! Request routing is unchanged.
+//! For auto-detection, accept `mount: Mount` in a handler and explicitly opt in:
 //!
-//! **Warning:** In header-based mode, headers are trusted. For example, an
-//! attacker could request a password reset for another user while setting
-//! `X-Forwarded-Host` (or `Host`) to the attacker's domain. If the application
-//! uses [`Mount::external`] for the reset link, the victim receives an email
-//! containing that domain and their reset token. Clicking the link sends the
-//! token to the attacker, who can use it to reset the victim's password.
+//! ```
+//! use axum::{Extension, Router};
+//! use twelve::config::PublicUrl;
 //!
-//! To prevent this, configure the reverse proxy to overwrite the forwarded
-//! host and scheme with a fixed public origin, or validate them against allowed
-//! origins. It must also set `X-Script-Name` to the configured mount prefix, or
-//! remove it when no prefix is used. Keep the backend inaccessible to clients
-//! so requests cannot bypass these checks.
+//! # let app: Router = Router::new();
+//! let app = app.layer(Extension(None::<PublicUrl>));
+//! ```
+//!
+//! Registering `Some(url)` instead makes the extractor use that fixed URL.
+//! **Warning:** Extraction requires `Extension<Option<PublicUrl>>`; missing
+//! registration returns HTTP 500. Setting `Core::public_url` alone is not enough.
+//!
+//! Auto-detection uses `X-Forwarded-Proto` (default: HTTP), `X-Forwarded-Host`
+//! (fallback: `Host`), and `X-Script-Name` (default: no prefix).
+//!
+//! **Warning:** These headers are trusted. For example, an attacker can request
+//! a password reset for another user with their own domain in `X-Forwarded-Host`
+//! or `Host`. A reset email built with [`Mount::external`] then links to that
+//! domain. When the victim clicks, the attacker receives the reset token and
+//! can use it to change the victim's password.
+//!
+//! For header-based URLs, the proxy must fix or validate the public origin and
+//! set or remove `X-Script-Name`. Block direct backend access so clients cannot
+//! bypass the proxy. Using a configured fixed URL avoids this dependency.
 
 use axum::{
     extract::FromRequestParts,
