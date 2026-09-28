@@ -14,7 +14,7 @@ applications. Neither feature is enabled by default.
 
 ```toml
 [dependencies]
-twelve = { version = "0.4", features = ["postgres"] }
+twelve = { version = "0.6", features = ["postgres"] }
 ```
 
 ## Example
