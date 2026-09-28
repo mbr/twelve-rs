@@ -44,6 +44,13 @@
 //! **Warning:** Without `Extension<UrlSource>`, extraction returns HTTP 500.
 //! Loading configuration alone does not register it.
 //!
+//! # Internal URLs only
+//!
+//! Use `Urls::internal_only("/app")` without a public origin, or register
+//! `Extension(UrlSource::internal("/app"))` for handlers. `internal()` and
+//! redirects work normally; `external()` returns an error. Invalid prefixes
+//! panic at construction.
+//!
 //! # Request-derived URLs
 //!
 //! Register [`UrlSource::Automatic`] to detect the address from request headers:
@@ -74,7 +81,7 @@ use axum::{
     extract::FromRequestParts,
     http::{
         request::Parts,
-        uri::{Authority, Scheme},
+        uri::{Authority, PathAndQuery, Scheme},
         StatusCode, Uri,
     },
     response::Redirect,
@@ -90,28 +97,79 @@ pub enum UrlSource {
     Explicit(PublicUrl),
     /// Resolves the public address from request headers.
     Automatic,
+    /// Uses only a path prefix, without consulting request headers.
+    InternalOnly(String),
+}
+
+impl UrlSource {
+    /// Selects internal-only URLs with an absolute path prefix.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the prefix is not a URI-encoded absolute path, or contains an
+    /// authority, query, or fragment.
+    pub fn internal<S: Into<String>>(prefix: S) -> Self {
+        Self::InternalOnly(Urls::internal_only(prefix).script_name)
+    }
 }
 
 /// Reports public URL construction failures.
 #[derive(Debug, Error)]
 pub enum ExternalUrlError {
+    /// Indicates that this URL generator only supports internal URLs.
+    #[error("external URLs are unavailable in internal-only mode")]
+    InternalOnly,
     /// Indicates that the supplied path or prefix is not a valid URI.
     #[error("invalid public URL")]
     InvalidUri(#[source] axum::http::Error),
 }
 
-/// Constructs URLs from a resolved public address.
+/// Identifies whether an origin is available for external URLs.
+#[derive(Clone, Debug)]
+enum Origin {
+    /// Supports only paths relative to the application prefix.
+    InternalOnly,
+    /// Provides a resolved public origin.
+    External {
+        /// Identifies the HTTP scheme.
+        scheme: Scheme,
+        /// Includes the public host, credentials, and port.
+        authority: Authority,
+    },
+}
+
+/// Constructs URLs from a public address or an internal-only prefix.
 #[derive(Clone, Debug)]
 pub struct Urls {
     /// The absolute path on the domain that the app is running under.
     script_name: String,
-    /// The configured or request-derived HTTP scheme.
-    scheme: Scheme,
-    /// The public authority, including any credentials and port.
-    authority: Authority,
+    /// Determines whether absolute URL construction is available.
+    origin: Origin,
 }
 
 impl Urls {
+    /// Constructs an internal-only URL generator with an absolute path prefix.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the prefix is not a URI-encoded absolute path, or contains an
+    /// authority, query, or fragment.
+    pub fn internal_only<S: Into<String>>(prefix: S) -> Self {
+        let prefix = prefix.into();
+        assert!(
+            prefix.starts_with('/')
+                && !prefix.starts_with("//")
+                && !prefix.contains(['?', '#', '\\'])
+                && !prefix.bytes().any(|byte| byte.is_ascii_whitespace())
+                && prefix.parse::<PathAndQuery>().is_ok(),
+            "invalid internal URL prefix"
+        );
+        Self {
+            script_name: prefix,
+            origin: Origin::InternalOnly,
+        }
+    }
+
     /// Constructs a relative URL, joining the path prefix with one slash.
     ///
     /// # Panics
@@ -127,12 +185,15 @@ impl Urls {
 
     /// Constructs an absolute URL relative to the base URL, not the request path.
     ///
-    /// Accepts URI-encoded paths with or without a leading slash. Fails if the
-    /// resulting URI is invalid.
+    /// Accepts URI-encoded paths with or without a leading slash. Fails in
+    /// internal-only mode or if the resulting URI is invalid.
     pub fn external<S: AsRef<str>>(&self, path: S) -> Result<String, ExternalUrlError> {
+        let Origin::External { scheme, authority } = &self.origin else {
+            return Err(ExternalUrlError::InternalOnly);
+        };
         Uri::builder()
-            .scheme(self.scheme.clone())
-            .authority(self.authority.clone())
+            .scheme(scheme.clone())
+            .authority(authority.clone())
             .path_and_query(self.prefixed_path(path.as_ref()))
             .build()
             .map(|uri| uri.to_string())
@@ -148,12 +209,17 @@ impl Urls {
         )
     }
 
-    /// Returns the public host, including an explicit port if present.
-    pub fn public_host(&self) -> &str {
-        let authority = self.authority.as_str();
-        authority
-            .rsplit_once('@')
-            .map_or(authority, |(_, host)| host)
+    /// Returns the public host and optional port, or `None` in internal-only mode.
+    pub fn public_host(&self) -> Option<&str> {
+        let Origin::External { authority, .. } = &self.origin else {
+            return None;
+        };
+        let authority = authority.as_str();
+        Some(
+            authority
+                .rsplit_once('@')
+                .map_or(authority, |(_, host)| host),
+        )
     }
 
     /// Redirects to a path relative to the configured or detected prefix.
@@ -173,8 +239,10 @@ impl From<&PublicUrl> for Urls {
         let uri = url.as_uri();
         Self {
             script_name: uri.path().to_owned(),
-            scheme: uri.scheme().expect("PublicUrl has a scheme").clone(),
-            authority: uri.authority().expect("PublicUrl has an authority").clone(),
+            origin: Origin::External {
+                scheme: uri.scheme().expect("PublicUrl has a scheme").clone(),
+                authority: uri.authority().expect("PublicUrl has an authority").clone(),
+            },
         }
     }
 }
@@ -189,6 +257,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Urls {
             .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?
         {
             UrlSource::Explicit(url) => return Ok(Self::from(url)),
+            UrlSource::InternalOnly(prefix) => return Ok(Self::internal_only(prefix.clone())),
             UrlSource::Automatic => {}
         }
 
@@ -231,8 +300,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Urls {
 
         Ok(Self {
             script_name,
-            scheme,
-            authority,
+            origin: Origin::External { scheme, authority },
         })
     }
 }
@@ -244,7 +312,7 @@ mod tests {
         http::{uri::Scheme, Request, StatusCode},
     };
 
-    use super::{UrlSource, Urls};
+    use super::{ExternalUrlError, Origin, UrlSource, Urls};
     use crate::config::PublicUrl;
 
     #[tokio::test]
@@ -269,7 +337,7 @@ mod tests {
             "https://user:p%40ss@example.com:8443/app/account"
         );
         assert_eq!(urls.internal("account"), "/app/account");
-        assert_eq!(urls.public_host(), "example.com:8443");
+        assert_eq!(urls.public_host(), Some("example.com:8443"));
     }
 
     #[tokio::test]
@@ -301,6 +369,34 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn internal_only_urls_need_no_origin() {
+        let urls = Urls::internal_only("/app");
+        assert_eq!(urls.internal("account"), "/app/account");
+        assert!(urls.public_host().is_none());
+        assert!(matches!(
+            urls.external("account"),
+            Err(ExternalUrlError::InternalOnly)
+        ));
+
+        let (mut parts, ()) = Request::builder()
+            .header("X-Script-Name", "/ignored")
+            .body(())
+            .expect("valid request")
+            .into_parts();
+        parts.extensions.insert(UrlSource::internal("/"));
+        let urls = Urls::from_request_parts(&mut parts, &())
+            .await
+            .expect("internal URLs");
+        assert_eq!(urls.internal("account"), "/account");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid internal URL prefix")]
+    fn internal_only_rejects_non_path_prefixes() {
+        Urls::internal_only("https://example.com/app");
+    }
+
     #[test]
     fn url_construction() {
         for (prefix, expected_path) in [
@@ -309,8 +405,10 @@ mod tests {
         ] {
             let urls = Urls {
                 script_name: prefix.to_owned(),
-                scheme: Scheme::HTTPS,
-                authority: "example.com:8443".parse().expect("valid authority"),
+                origin: Origin::External {
+                    scheme: Scheme::HTTPS,
+                    authority: "example.com:8443".parse().expect("valid authority"),
+                },
             };
             for path in ["foo?bar=baz", "/foo?bar=baz"] {
                 assert_eq!(urls.internal(path), expected_path);
