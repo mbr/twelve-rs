@@ -26,10 +26,9 @@
 //! # }
 //! ```
 //!
-//! Handlers can instead take `urls: Urls` as an Axum extractor. Register a
-//! [`Core::url_source`](crate::config::Core::url_source) using
-//! [`axum::Extension`] to use the configured URL, falling back to automatic
-//! detection when `public_url` is absent:
+//! Handlers can instead take `urls: Urls` as an Axum extractor. Pass
+//! `config.url_source()` to an [`axum::Extension`] layer to use the configured
+//! URL, falling back to automatic detection when `public_url` is absent:
 //!
 //! ```
 //! use axum::{Extension, Router};
