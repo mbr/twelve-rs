@@ -5,6 +5,7 @@
 - Add optional `Core::public_url` configuration and a validated `PublicUrl` type.
 - Rename `mount::Mount` to `urls::Urls`.
 - Add `Urls::external`, `Urls::public_host`, and `Core::urls`.
+- Add `UrlSource::Explicit` and `UrlSource::Automatic` for request extraction.
 
 ## 0.5.0
 
