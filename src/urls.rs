@@ -5,6 +5,9 @@
 //! `account` into `/app/account` with [`Urls::internal`], or
 //! `https://example.com/app/account` with [`Urls::external`].
 //!
+//! Prefer `internal()` for navigation: relative URLs retain the visitor's host
+//! and port, including during development or when accessing the app by IP.
+//!
 //! # Fixed public URL
 //!
 //! Prefer supplying the address in configuration:
@@ -24,20 +27,21 @@
 //! ```
 //!
 //! Handlers can instead take `urls: Urls` as an Axum extractor. Register a
-//! [`UrlSource`] using [`axum::Extension`] to choose how it resolves the address:
+//! [`Core::url_source`](crate::config::Core::url_source) using
+//! [`axum::Extension`] to use the configured URL, falling back to automatic
+//! detection when `public_url` is absent:
 //!
 //! ```
 //! use axum::{Extension, Router};
-//! use twelve::urls::UrlSource;
 //!
 //! # fn configure(app: Router, config: twelve::config::Core) -> Router {
-//! let url = config.public_url.expect("public_url must be configured");
-//! let app = app.layer(Extension(UrlSource::Explicit(url)));
+//! let app = app.layer(Extension(config.url_source()));
 //! # app
 //! # }
 //! ```
 //!
-//! `Explicit` uses the configured URL and ignores origin and prefix headers.
+//! With a configured URL, this ignores origin and prefix headers. Otherwise,
+//! the request-derived behavior and security considerations below apply.
 //! **Warning:** Without `Extension<UrlSource>`, extraction returns HTTP 500.
 //! Loading configuration alone does not register it.
 //!

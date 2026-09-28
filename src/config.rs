@@ -377,6 +377,14 @@ impl Core {
     pub fn urls(&self) -> Option<crate::urls::Urls> {
         self.public_url.as_ref().map(crate::urls::Urls::from)
     }
+
+    /// Selects the configured public URL, or automatic request-based detection.
+    pub fn url_source(&self) -> crate::urls::UrlSource {
+        match &self.public_url {
+            Some(url) => crate::urls::UrlSource::Explicit(url.clone()),
+            None => crate::urls::UrlSource::Automatic,
+        }
+    }
 }
 
 /// Describes a failure to resolve or load application configuration.
@@ -514,6 +522,10 @@ mod tests {
                 .expect("valid URL"),
             "https://user:p%40ss@example.com:8443/app/account"
         );
+        assert!(
+            matches!(config.core.url_source(), crate::urls::UrlSource::Explicit(url)
+            if Some(&url) == config.core.public_url.as_ref())
+        );
         let url = config.core.public_url.expect("configured public URL");
         assert_eq!(url.to_string(), "https://user:p%40ss@example.com:8443/app/");
         assert_eq!(format!("{url:?}"), "PublicUrl(...)");
@@ -537,6 +549,10 @@ mod tests {
         );
         assert!(config.core.public_url.is_none());
         assert!(config.core.urls().is_none());
+        assert!(matches!(
+            config.core.url_source(),
+            crate::urls::UrlSource::Automatic
+        ));
     }
 
     /// Rejects unsupported public base URL components.
