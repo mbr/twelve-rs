@@ -1,24 +1,21 @@
 //! Builds links and redirects from a fixed public URL or request headers.
 //!
-//! **Warning:** Setting [`Core::public_url`](crate::config::Core::public_url)
-//! alone has no effect on [`Mount`]. Register [`PublicUrl`] as an
-//! [`axum::Extension`] to override all origin and mount-prefix headers:
+//! **Warning:** Register `Option<PublicUrl>` as an [`axum::Extension`].
+//! `Some(url)` overrides all origin and mount-prefix headers; `None` explicitly
+//! enables header-based URLs. Missing registration rejects extraction with
+//! HTTP 500, even if [`Core::public_url`](crate::config::Core::public_url) is set:
 //!
 //! ```
 //! use axum::{Extension, Router};
 //! use twelve::config::Core;
 //!
 //! # fn configure(app: Router, config: Core) -> Router {
-//! let app = if let Some(url) = config.public_url {
-//!     app.layer(Extension(url))
-//! } else {
-//!     app
-//! };
+//! let app = app.layer(Extension(config.public_url));
 //! # app
 //! # }
 //! ```
 //!
-//! Without this extension, URLs use `X-Forwarded-Proto` (default: HTTP),
+//! With a registered `None`, URLs use `X-Forwarded-Proto` (default: HTTP),
 //! `X-Forwarded-Host` (fallback: `Host`), and an optional `X-Script-Name` prefix.
 //! Request routing is unchanged.
 //!
@@ -161,7 +158,11 @@ impl<S: Send + Sync> FromRequestParts<S> for Mount {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        if let Some(url) = parts.extensions.get::<PublicUrl>() {
+        if let Some(url) = parts
+            .extensions
+            .get::<Option<PublicUrl>>()
+            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?
+        {
             return Ok(Self::from(url));
         }
 
@@ -215,7 +216,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Mount {
 mod tests {
     use axum::{
         extract::FromRequestParts,
-        http::{uri::Scheme, Request},
+        http::{uri::Scheme, Request, StatusCode},
     };
 
     use super::{ExternalUrlError, Mount};
@@ -261,7 +262,7 @@ mod tests {
             .body(())
             .expect("valid request")
             .into_parts();
-        parts.extensions.insert(url);
+        parts.extensions.insert(Some(url));
         let mount = Mount::from_request_parts(&mut parts, &())
             .await
             .expect("fixed mount");
@@ -274,12 +275,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn falls_back_to_host_and_http() {
+    async fn header_based_urls_require_explicit_registration() {
         let (mut parts, ()) = Request::builder()
             .header("Host", "127.0.0.1:3000")
             .body(())
             .expect("valid request")
             .into_parts();
+        assert_eq!(
+            Mount::from_request_parts(&mut parts, &())
+                .await
+                .expect_err("missing registration"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        );
+        parts.extensions.insert(None::<PublicUrl>);
         let mount = Mount::from_request_parts(&mut parts, &())
             .await
             .expect("valid mount");
