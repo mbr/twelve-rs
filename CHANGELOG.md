@@ -3,8 +3,8 @@
 ## Unreleased
 
 - Add `Mount::external` and `Mount::public_host` using `X-Forwarded-Proto` and
-  `X-Forwarded-Host`. Absolute links include the existing `X-Script-Name` prefix.
-  All three headers must be sanitized by a trusted reverse proxy.
+  `X-Forwarded-Host`, falling back to HTTP and `Host`. Absolute links include
+  the existing `X-Script-Name` prefix.
 
 ## 0.5.0
 

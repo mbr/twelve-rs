@@ -10,7 +10,9 @@
 //! Remove `X-Script-Name` when no mount prefix is configured. Validating header
 //! syntax does not prevent an attacker from supplying a different public URL.
 //!
-//! No fallback to `Forwarded`, `Host`, or the request URI is performed.
+//! Without `X-Forwarded-Host`, the host comes from `Host`. Without
+//! `X-Forwarded-Proto`, the scheme defaults to HTTP. `Host` is also supplied
+//! by the client; these fallbacks do not establish a trusted canonical origin.
 //!
 //! ```
 //! use axum::response::Redirect;
@@ -26,7 +28,7 @@ use axum::{
     http::{
         request::Parts,
         uri::{self, Authority, Scheme},
-        HeaderMap, StatusCode, Uri,
+        StatusCode, Uri,
     },
     response::Redirect,
 };
@@ -35,8 +37,8 @@ use thiserror::Error;
 /// Describes why an absolute public URL could not be constructed.
 #[derive(Debug, Error)]
 pub enum ExternalUrlError {
-    /// Indicates that the proxy did not provide both origin headers.
-    #[error("public URL requires X-Forwarded-Proto and X-Forwarded-Host")]
+    /// Indicates that no public origin is available.
+    #[error("public URL requires a host")]
     MissingOrigin,
     /// Indicates that the supplied path or mount prefix is not a valid URI.
     #[error("invalid public URL")]
@@ -48,9 +50,9 @@ pub enum ExternalUrlError {
 pub struct Mount {
     /// The absolute path on the domain that the app is running under.
     script_name: Option<String>,
-    /// The public HTTP scheme supplied by the reverse proxy.
+    /// The forwarded HTTP scheme, defaulting to HTTP.
     scheme: Option<Scheme>,
-    /// The public host and optional port supplied by the reverse proxy.
+    /// The forwarded or request host and optional port.
     authority: Option<Authority>,
 }
 
@@ -87,11 +89,11 @@ impl Mount {
             .to_string()
     }
 
-    /// Constructs an absolute URL using the proxy origin and mount prefix.
+    /// Constructs an absolute URL using the public origin and mount prefix.
     ///
     /// Both `foo` and `/foo` are relative to the mount prefix, not the current
-    /// request path. Returns an error if either origin header is absent or the
-    /// resulting URI is invalid. The path must be URI-encoded.
+    /// request path. Returns an error if the host is absent or the resulting
+    /// URI is invalid. The path must be URI-encoded.
     pub fn external<S: AsRef<str>>(&self, path: S) -> Result<String, ExternalUrlError> {
         let (scheme, authority) = self
             .scheme
@@ -115,7 +117,7 @@ impl Mount {
             .map_err(ExternalUrlError::InvalidUri)
     }
 
-    /// Returns the forwarded public host, including an explicit port if present.
+    /// Returns the public host, including an explicit port if present.
     pub fn public_host(&self) -> Option<&str> {
         self.authority.as_ref().map(Authority::as_str)
     }
@@ -146,15 +148,24 @@ impl<S: Send + Sync> FromRequestParts<S> for Mount {
             None
         };
 
-        let scheme = proxy_header(&parts.headers, "x-forwarded-proto")?
-            .map(|value| match value {
-                "http" => Ok(Scheme::HTTP),
-                "https" => Ok(Scheme::HTTPS),
-                _ => Err(StatusCode::BAD_GATEWAY),
-            })
-            .transpose()?;
-        let authority = proxy_header(&parts.headers, "x-forwarded-host")?
+        let scheme = parts
+            .headers
+            .get("X-Forwarded-Proto")
+            .map(
+                |value| match value.to_str().map_err(|_| StatusCode::BAD_GATEWAY)? {
+                    "http" => Ok(Scheme::HTTP),
+                    "https" => Ok(Scheme::HTTPS),
+                    _ => Err(StatusCode::BAD_GATEWAY),
+                },
+            )
+            .transpose()?
+            .or(Some(Scheme::HTTP));
+        let authority = parts
+            .headers
+            .get("X-Forwarded-Host")
+            .or_else(|| parts.headers.get("Host"))
             .map(|value| {
+                let value = value.to_str().map_err(|_| StatusCode::BAD_GATEWAY)?;
                 if value.contains(['@', ',', '\\']) {
                     return Err(StatusCode::BAD_GATEWAY);
                 }
@@ -172,21 +183,12 @@ impl<S: Send + Sync> FromRequestParts<S> for Mount {
     }
 }
 
-/// Reads a single proxy header, rejecting ambiguous repeated values.
-fn proxy_header<'a>(headers: &'a HeaderMap, name: &str) -> Result<Option<&'a str>, StatusCode> {
-    let mut values = headers.get_all(name).iter();
-    let value = values.next();
-    if values.next().is_some() {
-        return Err(StatusCode::BAD_GATEWAY);
-    }
-    value
-        .map(|value| value.to_str().map_err(|_| StatusCode::BAD_GATEWAY))
-        .transpose()
-}
-
 #[cfg(test)]
 mod tests {
-    use axum::http::uri::Scheme;
+    use axum::{
+        extract::FromRequestParts,
+        http::{uri::Scheme, Request},
+    };
 
     use super::{ExternalUrlError, Mount};
 
@@ -215,6 +217,22 @@ mod tests {
 
         assert_eq!(mount.internal("foo/bar"), "/sub/dir/foo/bar");
         assert_eq!(mount.internal("///foo/bar"), "/sub/dir/foo/bar");
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_host_and_http() {
+        let (mut parts, ()) = Request::builder()
+            .header("Host", "127.0.0.1:3000")
+            .body(())
+            .expect("valid request")
+            .into_parts();
+        let mount = Mount::from_request_parts(&mut parts, &())
+            .await
+            .expect("valid mount");
+        assert_eq!(
+            mount.external("foo").expect("valid URL"),
+            "http://127.0.0.1:3000/foo"
+        );
     }
 
     #[test]
