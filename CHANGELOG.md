@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `Mount::external` and `Mount::public_host` using `X-Forwarded-Proto` and
+  `X-Forwarded-Host`. Absolute links include the existing `X-Script-Name` prefix.
+  All three headers must be sanitized by a trusted reverse proxy.
+
 ## 0.5.0
 
 - Upgrade `sqlx` to `0.9`, `toml` to `1.1`, and `tower-http` to `0.7`, and
