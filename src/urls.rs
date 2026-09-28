@@ -1,10 +1,9 @@
-//! Builds links and redirects to an application's public address.
+//! Constructs URLs and redirects using an application's public address.
 //!
 //! An application may listen on a private socket but be publicly available at
-//! `https://example.com/app/`. [`Mount`] uses that public address to turn
-//! `account` into `/app/account` with [`Mount::internal`], or
-//! `https://example.com/app/account` with [`Mount::external`]. It builds links;
-//! it does not change request routing.
+//! `https://example.com/app/`. [`Urls`] uses that public address to turn
+//! `account` into `/app/account` with [`Urls::internal`], or
+//! `https://example.com/app/account` with [`Urls::external`].
 //!
 //! Prefer supplying the address in configuration:
 //!
@@ -12,17 +11,17 @@
 //! public_url = "https://example.com/app/"
 //! ```
 //!
-//! [`Core::mount`](crate::config::Core::mount) constructs a mount from this
+//! [`Core::urls`](crate::config::Core::urls) constructs a URL generator from this
 //! value. It works without an HTTP request, including in background jobs:
 //!
 //! ```
 //! # fn example(config: twelve::config::Core) {
-//! let mount = config.mount().expect("public_url must be configured");
-//! let link = mount.external("account").expect("valid path");
+//! let urls = config.urls().expect("public_url must be configured");
+//! let url = urls.external("account").expect("valid path");
 //! # }
 //! ```
 //!
-//! Handlers can instead take `mount: Mount` as an Axum extractor. To supply its
+//! Handlers can instead take `urls: Urls` as an Axum extractor. To supply its
 //! configuration, add an [`axum::Extension`] layer to the router. This makes
 //! the value available on each request:
 //!
@@ -46,7 +45,7 @@
 //! **Warning:** Request-derived addresses can be attacker-controlled. For
 //! example, an attacker requests a password reset for another user, supplying
 //! their own domain in `X-Forwarded-Host` or `Host`. If the reset email uses
-//! [`Mount::external`], its link points to the attacker. Clicking it sends them
+//! [`Urls::external`], its link points to the attacker. Clicking it sends them
 //! the token, which they can use to reset the victim's password.
 //!
 //! To use detection safely, have the reverse proxy fix or validate the public
@@ -73,14 +72,14 @@ pub enum ExternalUrlError {
     /// Indicates that no public origin is available.
     #[error("public URL requires a host")]
     MissingOrigin,
-    /// Indicates that the supplied path or mount prefix is not a valid URI.
+    /// Indicates that the supplied path or prefix is not a valid URI.
     #[error("invalid public URL")]
     InvalidUri(#[source] axum::http::Error),
 }
 
-/// Constructs links from a fixed public URL or request headers.
+/// Constructs URLs from a fixed public address or request headers.
 #[derive(Debug)]
-pub struct Mount {
+pub struct Urls {
     /// The absolute path on the domain that the app is running under.
     script_name: Option<String>,
     /// The configured or request-derived HTTP scheme.
@@ -89,8 +88,8 @@ pub struct Mount {
     authority: Option<Authority>,
 }
 
-impl Mount {
-    /// Constructs a relative URL, joining the mount prefix with one slash.
+impl Urls {
+    /// Constructs a relative URL, joining the path prefix with one slash.
     ///
     /// # Panics
     ///
@@ -119,7 +118,7 @@ impl Mount {
             .to_string()
     }
 
-    /// Constructs an absolute URL relative to the mount, not the request path.
+    /// Constructs an absolute URL relative to the base URL, not the request path.
     ///
     /// Accepts URI-encoded paths with or without a leading slash. Fails if the
     /// host is missing or the resulting URI is invalid.
@@ -153,19 +152,19 @@ impl Mount {
             .and_then(|authority| authority.as_str().rsplit('@').next())
     }
 
-    /// Redirects to a path relative to the mount prefix.
+    /// Redirects to a path relative to the configured or detected prefix.
     ///
     /// # Panics
     ///
-    /// Panics if [`Mount::internal`] cannot construct a valid URI.
+    /// Panics if [`Urls::internal`] cannot construct a valid URI.
     #[inline(always)]
     pub fn redirect_to(&self, path: &str) -> Redirect {
         Redirect::to(&self.internal(path))
     }
 }
 
-impl From<&PublicUrl> for Mount {
-    /// Constructs a fixed mount, including the URL's credentials and path.
+impl From<&PublicUrl> for Urls {
+    /// Uses a fixed public URL, including its credentials and path.
     fn from(url: &PublicUrl) -> Self {
         let uri = url.as_uri();
         Self {
@@ -176,7 +175,7 @@ impl From<&PublicUrl> for Mount {
     }
 }
 
-impl<S: Send + Sync> FromRequestParts<S> for Mount {
+impl<S: Send + Sync> FromRequestParts<S> for Urls {
     type Rejection = StatusCode;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
@@ -226,7 +225,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Mount {
             })
             .transpose()?;
 
-        Ok(Mount {
+        Ok(Urls {
             script_name,
             scheme,
             authority,
@@ -241,34 +240,34 @@ mod tests {
         http::{uri::Scheme, Request, StatusCode},
     };
 
-    use super::{ExternalUrlError, Mount};
+    use super::{ExternalUrlError, Urls};
     use crate::config::PublicUrl;
 
     #[test]
     fn internal_url_construction_without_reverse_proxy() {
-        let mount = Mount {
+        let urls = Urls {
             script_name: None,
             scheme: None,
             authority: None,
         };
 
-        assert_eq!(mount.internal("/foo/bar"), "/foo/bar");
+        assert_eq!(urls.internal("/foo/bar"), "/foo/bar");
         assert!(matches!(
-            mount.external("foo"),
+            urls.external("foo"),
             Err(ExternalUrlError::MissingOrigin)
         ));
     }
 
     #[test]
     fn internal_url_construction_with_reverse_proxy() {
-        let mount = Mount {
+        let urls = Urls {
             script_name: Some("/sub/dir///".to_owned()),
             scheme: None,
             authority: None,
         };
 
-        assert_eq!(mount.internal("foo/bar"), "/sub/dir/foo/bar");
-        assert_eq!(mount.internal("///foo/bar"), "/sub/dir/foo/bar");
+        assert_eq!(urls.internal("foo/bar"), "/sub/dir/foo/bar");
+        assert_eq!(urls.internal("///foo/bar"), "/sub/dir/foo/bar");
     }
 
     #[tokio::test]
@@ -285,15 +284,15 @@ mod tests {
             .expect("valid request")
             .into_parts();
         parts.extensions.insert(Some(url));
-        let mount = Mount::from_request_parts(&mut parts, &())
+        let urls = Urls::from_request_parts(&mut parts, &())
             .await
-            .expect("fixed mount");
+            .expect("configured URLs");
         assert_eq!(
-            mount.external("account").expect("valid URL"),
+            urls.external("account").expect("valid URL"),
             "https://user:p%40ss@example.com:8443/app/account"
         );
-        assert_eq!(mount.internal("account"), "/app/account");
-        assert_eq!(mount.public_host(), Some("example.com:8443"));
+        assert_eq!(urls.internal("account"), "/app/account");
+        assert_eq!(urls.public_host(), Some("example.com:8443"));
     }
 
     #[tokio::test]
@@ -304,17 +303,17 @@ mod tests {
             .expect("valid request")
             .into_parts();
         assert_eq!(
-            Mount::from_request_parts(&mut parts, &())
+            Urls::from_request_parts(&mut parts, &())
                 .await
                 .expect_err("missing registration"),
             StatusCode::INTERNAL_SERVER_ERROR,
         );
         parts.extensions.insert(None::<PublicUrl>);
-        let mount = Mount::from_request_parts(&mut parts, &())
+        let urls = Urls::from_request_parts(&mut parts, &())
             .await
-            .expect("valid mount");
+            .expect("request-derived URLs");
         assert_eq!(
-            mount.external("foo").expect("valid URL"),
+            urls.external("foo").expect("valid URL"),
             "http://127.0.0.1:3000/foo"
         );
     }
@@ -328,14 +327,14 @@ mod tests {
                 "https://example.com:8443/script-path/bla/foo?bar=baz",
             ),
         ] {
-            let mount = Mount {
+            let urls = Urls {
                 script_name: prefix.map(str::to_owned),
                 scheme: Some(Scheme::HTTPS),
                 authority: Some("example.com:8443".parse().expect("valid authority")),
             };
-            assert_eq!(mount.public_host(), Some("example.com:8443"));
+            assert_eq!(urls.public_host(), Some("example.com:8443"));
             for path in ["foo?bar=baz", "/foo?bar=baz"] {
-                assert_eq!(mount.external(path).expect("valid public URL"), expected);
+                assert_eq!(urls.external(path).expect("valid public URL"), expected);
             }
         }
     }

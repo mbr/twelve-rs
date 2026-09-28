@@ -221,7 +221,7 @@ impl Display for LogFilter {
     }
 }
 
-/// Defines a fixed HTTP(S) base URL, including credentials and a mount path.
+/// Defines a fixed HTTP(S) base URL, including credentials and a path prefix.
 ///
 /// Queries and fragments are not supported. URI components must be encoded.
 #[derive(Clone, Deserialize, Eq, PartialEq)]
@@ -373,9 +373,9 @@ pub struct Core {
 }
 
 impl Core {
-    /// Constructs a fixed mount from the configured public URL, if present.
-    pub fn mount(&self) -> Option<crate::mount::Mount> {
-        self.public_url.as_ref().map(crate::mount::Mount::from)
+    /// Constructs a URL generator from the configured public URL, if present.
+    pub fn urls(&self) -> Option<crate::urls::Urls> {
+        self.public_url.as_ref().map(crate::urls::Urls::from)
     }
 }
 
@@ -508,8 +508,8 @@ mod tests {
         assert_eq!(
             config
                 .core
-                .mount()
-                .expect("configured mount")
+                .urls()
+                .expect("configured URLs")
                 .external("account")
                 .expect("valid URL"),
             "https://user:p%40ss@example.com:8443/app/account"
@@ -536,7 +536,7 @@ mod tests {
             "tower_http=warn,axum=warn,info"
         );
         assert!(config.core.public_url.is_none());
-        assert!(config.core.mount().is_none());
+        assert!(config.core.urls().is_none());
     }
 
     /// Rejects unsupported public base URL components.

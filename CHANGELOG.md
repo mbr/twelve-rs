@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Add optional `Core::public_url` configuration and a validated `PublicUrl` type.
-- Add `Mount::external` and `Mount::public_host`.
+- Rename `mount::Mount` to `urls::Urls`.
+- Add `Urls::external`, `Urls::public_host`, and `Core::urls`.
 
 ## 0.5.0
 

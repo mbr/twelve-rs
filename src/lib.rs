@@ -5,7 +5,6 @@ pub mod config;
 pub mod frontend;
 pub mod listener;
 pub mod logging;
-pub mod mount;
 #[cfg(feature = "html")]
 #[cfg_attr(docsrs, doc(cfg(feature = "html")))]
 pub mod page;
@@ -14,5 +13,6 @@ pub mod page;
 pub mod postgres;
 mod server;
 pub mod shutdown;
+pub mod urls;
 
 pub use server::{serve, ServeError};
