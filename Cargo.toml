@@ -35,6 +35,7 @@ serde = { version = "1", features = ["derive"] }
 sqlx = { version = "0.9", default-features = false, features = ["migrate", "postgres", "runtime-tokio", "tls-rustls"], optional = true }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "signal"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 toml = { version = "1.1", default-features = false, features = ["parse", "serde", "std"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "env-filter", "tracing-log"] }

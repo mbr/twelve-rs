@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `shutdown::token()` for shared, signal-driven cancellation.
+
 ## 0.6.0
 
 - Add optional `Core::public_url` configuration and a validated `PublicUrl` type.
