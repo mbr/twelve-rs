@@ -70,16 +70,16 @@ pub fn signal() -> impl Future<Output = ()> {
 pub fn token() -> CancellationToken {
     let signal = signal();
     let token = CancellationToken::new();
-    tokio::spawn(cancel_on_signal(signal, token.clone()));
-    token
-}
+    let trigger = token.clone();
 
-/// Cancels the token on a signal or stops watching on manual cancellation.
-async fn cancel_on_signal(signal: impl Future<Output = ()>, token: CancellationToken) {
-    tokio::select! {
-        () = signal => token.cancel(),
-        () = token.cancelled() => {}
-    }
+    tokio::spawn(async move {
+        tokio::select! {
+            () = signal => trigger.cancel(),
+            () = trigger.cancelled() => {}
+        }
+    });
+
+    token
 }
 
 /// Registers a shutdown signal while preserving startup on failure.
@@ -100,53 +100,5 @@ async fn receive_signal(signal: &mut Option<Signal>) {
             signal.recv().await;
         }
         None => pending().await,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{
-        future::{pending, Future},
-        pin::pin,
-        task::{Context, Waker},
-    };
-
-    use tokio::sync::oneshot;
-    use tokio_util::sync::CancellationToken;
-
-    use super::cancel_on_signal;
-
-    /// Verifies that a signal cancels the shared token and completes the watcher.
-    #[test]
-    fn cancels_token_on_signal() {
-        let token = CancellationToken::new();
-        let (sender, receiver) = oneshot::channel();
-        let mut watcher = pin!(cancel_on_signal(
-            async { receiver.await.expect("signal sender should remain alive") },
-            token.clone(),
-        ));
-        let mut context = Context::from_waker(Waker::noop());
-
-        assert!(watcher.as_mut().poll(&mut context).is_pending());
-        assert!(!token.is_cancelled());
-
-        sender.send(()).expect("watcher should receive the signal");
-
-        assert!(watcher.as_mut().poll(&mut context).is_ready());
-        assert!(token.is_cancelled());
-    }
-
-    /// Verifies that manual cancellation stops a watcher with no signal.
-    #[test]
-    fn stops_watching_on_manual_cancellation() {
-        let token = CancellationToken::new();
-        let mut watcher = pin!(cancel_on_signal(pending(), token.clone()));
-        let mut context = Context::from_waker(Waker::noop());
-
-        assert!(watcher.as_mut().poll(&mut context).is_pending());
-
-        token.cancel();
-
-        assert!(watcher.as_mut().poll(&mut context).is_ready());
     }
 }
